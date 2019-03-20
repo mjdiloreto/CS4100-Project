@@ -2,22 +2,24 @@ require('mobdebug').start();             -- enable debugging checkpoints
 StartDebug();                            -- enable debugging
 local mod = RegisterMod("AI Final", 1);  -- register mod in game
 
---[[ uncomment this when we need to include config
-local _, err = pcall(require, "config")
-err = tostring(err)
-if not string.match(err, "attempt to call a nil value %(method 'ForceError'%)") then
-    if string.match(err, "true") then
-        err = "Error: require passed in config"
-    end
-    Isaac.DebugString(err)
-    print(err)
-end
-  require("descriptions.ab+."..EIDConfig["Language"])
-  --]]
-  
 -----------------------------------
 -------- UTILITY FUNCTIONS --------
 -----------------------------------
+
+function import(filename)
+  local _, err = pcall(require, filename)
+  err = tostring(err)
+  if not string.match(err, "attempt to call a nil value %(method 'ForceError'%)") then
+    if string.match(err, "true") then
+        err = "Error: require passed in config"
+    end
+    CPrint(err)
+  end
+end
+
+function CPrint(str) 
+  Isaac.ConsoleOutput(str.."\n")
+end
 
 -- retrieves the player userdata
 function getPlayer()
@@ -46,6 +48,8 @@ Isaac.ConsoleOutput("\n")
 
 modEnabled = false
 
+import("levelSearch")
+  
 --------------------------------
 -------- DEBUG COMMANDS --------
 --------------------------------
