@@ -22,15 +22,25 @@ Isaac.ExecuteCommand("debug 3")
 --Isaac.ExecuteCommand("debug 10")
 
 function onInputRequest(arg0, entity, inputHook, buttonAction)
-  if inputHook == InputHook.GET_ACTION_VALUE then
-    return 0.0
+  if entity ~= nil then
+    if inputHook == InputHook.GET_ACTION_VALUE then
+      if buttonAction == ButtonAction.ACTION_RIGHT then
+        return 1.0
+      end
+      return 0.0
+    end
+    if inputHook == InputHook.IS_ACTION_PRESSED then
+      if buttonAction == ButtonAction.ACTION_SHOOTDOWN then
+        return true
+      end
+      
+    end
+    if inputHook == InputHook.IS_ACTION_TRIGGERED then
+      -- do thing here
+      return false
+    end
+    return false
   end
-  if buttonAction == ButtonAction.ACTION_LEFT or buttonAction == ButtonAction.ACTION_SHOOTUP then
-    Isaac.ConsoleOutput("shootleft\n")
-    Isaac.ConsoleOutput(buttonAction)
-    return true
-  end
-  return false
 end
 
 function onDamage(_,entity,_,_,source)
