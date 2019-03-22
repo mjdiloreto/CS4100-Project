@@ -34,6 +34,17 @@ function equal(expected, result)
   return expected == result
 end
 
+--[[ Check membership of val in list --]]
+function contains(list, val)
+    for index, value in ipairs(list) do
+        if value == val then
+            return true
+        end
+    end
+
+    return false
+end
+
 -- retrieves the player userdata
 function getPlayer()
   return Isaac.GetPlayer(0)
@@ -62,7 +73,7 @@ Isaac.ConsoleOutput("\n")
 modEnabled = false
 
 import("levelSearch")
-dfs(1,2,3)
+
 
 --------------------------------
 -------- DEBUG COMMANDS --------
