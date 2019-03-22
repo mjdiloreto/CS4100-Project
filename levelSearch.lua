@@ -42,3 +42,6 @@ function dfs(tree, succ, goalTest, transition)
   log("DFS ended")
   return {}
 end
+
+-- mod compatability thing. Required by Isaac API
+Vector:ForceError()
