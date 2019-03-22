@@ -17,8 +17,21 @@ function import(filename)
   end
 end
 
+--[[ Write str to the Isaac Console --]]
 function CPrint(str) 
   Isaac.ConsoleOutput(str.."\n")
+end
+
+--[[ Write str to file specified by config (or hardcoded) --]]
+function log(str)
+  -- TODO change this to write to a log file.
+  CPrint(str)
+end
+
+--[[ Utility method for testing --]]
+function equal(expected, result)
+  -- TODO make this smart?
+  return expected == result
 end
 
 -- retrieves the player userdata
@@ -49,7 +62,8 @@ Isaac.ConsoleOutput("\n")
 modEnabled = false
 
 import("levelSearch")
-  
+dfs(1,2,3)
+
 --------------------------------
 -------- DEBUG COMMANDS --------
 --------------------------------
