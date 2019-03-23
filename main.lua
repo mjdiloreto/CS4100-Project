@@ -17,24 +17,24 @@ function import(filename)
   end
 end
 
---[[ Write str to the Isaac Console --]]
+-- Write str to the Isaac Console
 function CPrint(str) 
   Isaac.ConsoleOutput(str.."\n")
 end
 
---[[ Write str to file specified by config (or hardcoded) --]]
+-- Write str to file specified by config (or hardcoded)
 function log(str)
   -- TODO change this to write to a log file.
   CPrint(str)
 end
 
---[[ Utility method for testing --]]
+-- Utility method for testing
 function equal(expected, result)
   -- TODO make this smart?
   return expected == result
 end
 
---[[ Check membership of val in list --]]
+-- Check membership of val in list
 function contains(list, val)
     for index, value in ipairs(list) do
         if value == val then
@@ -44,6 +44,26 @@ function contains(list, val)
 
     return false
 end
+
+-- Basic functional mapping
+function map(func, array)
+  local new_array = {}
+  for i,v in ipairs(array) do
+    new_array[i] = func(v)
+  end
+  return new_array
+end
+
+-- return a new array equal to old plus one new element elt
+function append(array, elt)
+  newArr = {}
+  for k, v in ipairs(array) do
+    newArr[k] = v
+  end
+  newArr[#array+1] = elt
+  return newArr
+end
+
 
 -- retrieves the player userdata
 function getPlayer()
@@ -74,7 +94,6 @@ modEnabled = false
 
 import("levelSearch")
 
-
 --------------------------------
 -------- DEBUG COMMANDS --------
 --------------------------------
@@ -98,6 +117,7 @@ function onGameStarted()
   -- print variables to console
   Isaac.ConsoleOutput(string.format("makeIsaacInvincible = %s\n", tostring(makeIsaacInvincible)))
   Isaac.ConsoleOutput(string.format("killAllEnemiesOnRoomStart = %s\n", tostring(killAllEnemiesOnRoomStart)))
+  
 end
 
 -- bind the MC_POST_GAME_STARTED callback to onGameStarted
