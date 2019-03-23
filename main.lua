@@ -108,13 +108,14 @@ mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, onGameStarted)
 -------- PROGRAMMATIC INPUT --------
 ------------------------------------
 local shootDirection = ButtonAction.ACTION_SHOOTUP
-local moveDirection = ButtonAction.ACTION_LEFT
+local moveDirectionX = ButtonAction.ACTION_LEFT
+local moveDirectionY = nil
 
 function onInputRequest(_, entity, inputHook, buttonAction)
   if modEnabled then
     if entity ~= nil then
       if inputHook == InputHook.GET_ACTION_VALUE then
-        if buttonAction == moveDirection then
+        if buttonAction == moveDirectionX or buttonAction == moveDirectionY then
           return 1.0
         end
         if buttonAction == shootDirection then
@@ -140,22 +141,28 @@ mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
 -------- DAMAGE EVENTS --------
 -------------------------------
 function onPlayerDamage(_,entity,_,_,source)
-	Isaac.ConsoleOutput("onDamage Triggered:\n")
+  Isaac.ConsoleOutput("onDamage Triggered:\n")
 end
 
 -- bind the MC_ENTITY_TAKE_DMG callback for the Player to onPlayerDamage
-mod:AddCallback(ModCallbacks.MC_ENTITY_TAKE_DMG, onDamage, EntityType.ENTITY_PLAYER)
+mod:AddCallback(ModCallbacks.MC_ENTITY_TAKE_DMG, onPlayerDamage, EntityType.ENTITY_PLAYER)
 
 ---------------------------------
 -------- FREQUENT CHECKS --------
 ---------------------------------
 local timer = 0
 local moveLeftAndRightEvery = 100
-local moveLeftAndRightAgent = true
+
+local AgentType = { MoveLeftAndRight = 0, SnakeAgent = 1,  PointAndClick = 2 }
+local agentType = AgentType.PointAndClick
+local agentTypeString = "PointAndClick"
 
 local isaacMessage = ""
 local isaacMessageTimer = 0
 local isaacMessageTimerInitValue = 0
+
+local pointAndClickPos = nil
+local pointAndClickThreshold = 10
 
 -- sets the message to print under the player sprite for the given number of frames (duration)
 function setIsaacMessage(message, duration)
@@ -175,42 +182,110 @@ function printIsaacMessage()
 end
 
 -- code to be run every frame
-function onRender()
+function onStep()
   -- enable and disable the AI mod by pressing 'R' on your keyboard
   if Input.IsActionTriggered(ButtonAction.ACTION_RESTART, 0) then
     if modEnabled then
       modEnabled = false
       Isaac.ConsoleOutput("AI Mod Disabled\n")
-      setIsaacMessage("AI Mod Disabled", 100)
+      setIsaacMessage("AI Disabled (" .. agentTypeString .. ")", 100)
     else
       modEnabled = true
       timer = 0
       Isaac.ConsoleOutput("AI Mod Enabled\n")
-      setIsaacMessage("AI Mod Enabled", 100)
+      setIsaacMessage("AI Enabled (" .. agentTypeString .. ")", 100)
     end
   end
   
   -- print the isaacMessage
   printIsaacMessage()
   
-  -- this agent moves left and then right every moveLeftAndRightEvery tics
-  if moveLeftAndRightAgent then
-    if timer % moveLeftAndRightEvery == 0 then
-      if moveDirection == ButtonAction.ACTION_LEFT then
-        moveDirection = ButtonAction.ACTION_RIGHT
-      else
-        moveDirection = ButtonAction.ACTION_LEFT
+  if modEnabled then
+    -- this agent moves left and then right every moveLeftAndRightEvery tics
+    if agentType == AgentType.MoveLeftAndRight then
+      if timer % moveLeftAndRightEvery == 0 then
+        if moveDirectionX == ButtonAction.ACTION_LEFT then
+          moveDirectionX = ButtonAction.ACTION_RIGHT
+        else
+          moveDirectionX = ButtonAction.ACTION_LEFT
+        end
+        timer = 0
       end
-      timer = 0
+      timer = timer + 1
     end
-    timer = timer + 1
+    
+    -- this agent moves and shoots in the last move / shoot direction
+    if agentType == AgentType.SnakeAgent then
+      if Input.IsActionTriggered(ButtonAction.ACTION_LEFT, 0) or Input.IsActionTriggered(ButtonAction.ACTION_SHOOTLEFT, 0) then
+        moveDirectionX = ButtonAction.ACTION_LEFT
+        moveDirectionY = nil
+        shootDirection = ButtonAction.ACTION_SHOOTLEFT
+      elseif Input.IsActionTriggered(ButtonAction.ACTION_RIGHT, 0) or Input.IsActionTriggered(ButtonAction.ACTION_SHOOTRIGHT, 0) then
+        moveDirectionX = ButtonAction.ACTION_RIGHT
+        moveDirectionY = nil
+        shootDirection = ButtonAction.ACTION_SHOOTRIGHT
+      elseif Input.IsActionTriggered(ButtonAction.ACTION_UP, 0) or Input.IsActionTriggered(ButtonAction.ACTION_SHOOTUP, 0) then
+        moveDirectionX = nil
+        moveDirectionY = ButtonAction.ACTION_UP
+        shootDirection = ButtonAction.ACTION_SHOOTUP
+      elseif Input.IsActionTriggered(ButtonAction.ACTION_DOWN, 0) or Input.IsActionTriggered(ButtonAction.ACTION_SHOOTDOWN, 0) then
+        moveDirectionX = nil
+        moveDirectionY = ButtonAction.ACTION_DOWN
+        shootDirection = ButtonAction.ACTION_SHOOTDOWN
+      end
+    end
+    
+    -- this agent moves to the point on the screen that you click!
+    if agentType == AgentType.PointAndClick then
+      shootDirection = nil
+      moveDirectionX = nil
+      moveDirectionY = nil
+      if Input.IsMouseBtnPressed(0) then
+        pointAndClickPos = Input.GetMousePosition(true)
+      end
+      if pointAndClickPos ~= nil then
+        local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
+        Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
+        
+        local playerPos =  getPlayerPosition()
+        
+        local xDistToClickPos = pointAndClickPos.X - playerPos.X
+        local yDistToClickPos = pointAndClickPos.Y - playerPos.Y
+        
+        if math.abs(xDistToClickPos) > pointAndClickThreshold then
+          if xDistToClickPos > 0 then
+            moveDirectionX = ButtonAction.ACTION_RIGHT
+            
+          elseif xDistToClickPos < 0 then
+            moveDirectionX = ButtonAction.ACTION_LEFT
+          end
+        end
+        
+        if math.abs(yDistToClickPos) > pointAndClickThreshold then
+          if yDistToClickPos < 0 then
+            moveDirectionY = ButtonAction.ACTION_UP
+            
+          elseif yDistToClickPos > 0 then
+            moveDirectionY = ButtonAction.ACTION_DOWN
+          end
+        end
+      end
+    end
   end
 end
 
 -- bind the MC_POST_RENDER callback to onRender
 -- this event is triggered every frame, which is why we are using it to check the input
-mod:AddCallback(ModCallbacks.MC_POST_RENDER, onRender)
+mod:AddCallback(ModCallbacks.MC_POST_RENDER, onStep)
 
+-- called whenever you enter a room
+function onRoomStart()
+  pointAndClickPos = nil
+end
+
+-- bind the MC_POST_NEW_ROOM callback to onRender
+-- this event is triggered every time you enter a room
+mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, onRoomStart)
 
 -- bind the MC_POST_RENDER callback to onRender
 -- this event is triggered every kill, which is why we are using it to check the last kill

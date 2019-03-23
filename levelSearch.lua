@@ -42,3 +42,4 @@ function dfs(tree, succ, goalTest, transition)
   log("DFS ended")
   return {}
 end
+
