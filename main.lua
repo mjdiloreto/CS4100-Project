@@ -118,6 +118,7 @@ function onGameStarted()
   Isaac.ConsoleOutput(string.format("makeIsaacInvincible = %s\n", tostring(makeIsaacInvincible)))
   Isaac.ConsoleOutput(string.format("killAllEnemiesOnRoomStart = %s\n", tostring(killAllEnemiesOnRoomStart)))
   
+  getIsaacToBossRoom()
 end
 
 -- bind the MC_POST_GAME_STARTED callback to onGameStarted

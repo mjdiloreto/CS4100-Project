@@ -59,7 +59,7 @@ function interRoomTransition(startRoom, nextRoom, pathToStart, moveToAdjacent)
   path = map(roomDescToInt, pathToStart)
     
   while currentRoomIdx ~= nextRoomIdx do 
-    successors = map(roomDescToInt, levelSucc(lvl:GetRoomByIdx(currentRoomIdx)))
+    successors = map(roomDescToInt, levelSucc(lvl:GetCurrentRoom()))
     
     if contains(successors, nextRoomIdx) then
       currentRoomIdx = nextRoomIdx
@@ -68,6 +68,7 @@ function interRoomTransition(startRoom, nextRoom, pathToStart, moveToAdjacent)
     end
       
     moveToAdjacent(currentRoomIdx)
+    nextRoom = lvl:GetCurrentRoom()
   end
 end
 
@@ -107,7 +108,7 @@ function dfs(tree, succ, goalTest, transition)
       return current[2]
     end
     
-    for nextNode in succ(current[1]) do
+    for i, nextNode in ipairs(succ(current[1])) do
       if not contains(visited, nextNode) then
         nextPath = append(current[2], current[1])
         frontier:push({nextNode, nextPath})
@@ -115,9 +116,9 @@ function dfs(tree, succ, goalTest, transition)
     end
   
     temp = current
-    current = frontier.pop()
+    current = frontier:pop()
     -- How do I _really_ get from this room to the next?
-    transition(temp[1], current[1], current[2])
+    transition(temp[1], current)
   end
   
   log("DFS ended")
@@ -128,9 +129,6 @@ function getIsaacToBossRoom()
   return dfs(Game():GetRoom(), levelSucc, bossTest, roomTransition)
 end
 
-function sanity() 
-  CPrint("yes yes no please")
-end
-
+--TODO change signature of room transition, mutate strx
 -- mod compatability thing. Required by Isaac API
 Vector:ForceError()
