@@ -118,6 +118,7 @@ function onGameStarted()
   Isaac.ConsoleOutput(string.format("makeIsaacInvincible = %s\n", tostring(makeIsaacInvincible)))
   Isaac.ConsoleOutput(string.format("killAllEnemiesOnRoomStart = %s\n", tostring(killAllEnemiesOnRoomStart)))
   
+  CPrint(Game():GetLevel():GetCurrentRoomIndex())
   getIsaacToBossRoom()
 end
 

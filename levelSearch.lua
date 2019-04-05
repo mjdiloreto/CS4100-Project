@@ -14,61 +14,68 @@ function getAllDoorsInRoom(room)
   return doors
 end
 
---[[ Room -> List(RoomDescriptor)
+--[[ int -> List(int)
   What are all the rooms we can get to in one step, starting from this one? 
+  roomIdx - ignored input since we can assume the current room has that idx.
 --]]
-function levelSucc(room)
+function levelSucc(roomIdx)
   -- succDoors: List(GridEntityDoor)
-  succDoors = getAllDoorsInRoom(room)
+  succDoors = getAllDoorsInRoom(Game():GetRoom())
   
   local function doorToRoom(door)
     return Game():GetLevel():GetRoomByIdx(door.TargetRoomIndex)
   end
   
-  succRooms = map(doorToRoom, succDoors)
+  local function doorToGridIndex(door)
+    return door.TargetRoomIndex
+  end
+  
+  succRooms = map(doorToGridIndex, succDoors)
   
   return succRooms
 end
 
---[[ Room -> Boolean
+--[[ int -> Boolean
   Is this room the boss room? 
 --]]
-function bossTest(room)
-  return room:GetType() == RoomType.ROOM_BOSS
+function bossTest(roomIdx)
+  return Game():GetRoom():GetType() == RoomType.ROOM_BOSS
 end
 
---[[ Room RoomDescriptor List(RoomDescriptor) (int -> nil) -> nil
+--[[ int int List(int) (int -> nil) -> nil
   Move player from start to next, given that he took path to get from next to start.
   
   Params
   ------
-  startRoom: Room - the room Isaac is in
-  nextRoom: RoomDescriptor - important to note this is a different object, describing the Room Isaac should end in.
-  pathToStart: List(RoomDescription) - The descriptions of the rooms Isaac visited in order to get from next to start.
+  startRoom: int - the room Isaac is in now.
+  nextRoom: int - the GridIndex of the room Isaac should end up in
+  pathToStart: List(int) - The indexes of the rooms Isaac visited in order to get from next to start.
   moveToAdjacent: int -> nil - Given the room index of a room adjacent to the current one, move Isaac to that room.
 --]]
 function interRoomTransition(startRoom, nextRoom, pathToStart, moveToAdjacent)
   -- TODO use the room navigation algorithm to get to the door
   local function roomDescToInt(roomDesc)
-    return roomDesc.GridIndex -- might be GridIndex
+    return roomDesc.GridIndex
   end
   
   lvl = Game():GetLevel()
-  currentRoomIdx = lvl:GetCurrentRoomIndex()
-  nextRoomIdx = roomDescToInt(nextRoom)
-  path = map(roomDescToInt, pathToStart)
+  currentRoom = startRoom
+  
+  -- don't mutate the real path
+  path = append(pathToStart, nil)
+  
+  -- TODO use local variables idiot3
+  while currentRoom ~= nextRoom do 
+    successors = levelSucc(currentRoom)
     
-  while currentRoomIdx ~= nextRoomIdx do 
-    successors = map(roomDescToInt, levelSucc(lvl:GetCurrentRoom()))
-    
-    if contains(successors, nextRoomIdx) then
-      currentRoomIdx = nextRoomIdx
+    if contains(successors, nextRoom) then
+      currentRoom = nextRoom
     else
-      currentRoomIdx = path.remove()
+      currentRoom = table.remove(path)
     end
       
-    moveToAdjacent(currentRoomIdx)
-    nextRoom = lvl:GetCurrentRoom()
+    moveToAdjacent(currentRoom)
+    --nextRoom = lvl:GetCurrentRoomIndex()
   end
 end
 
@@ -77,13 +84,13 @@ function teleportToRoom(idx)
   Game():GetLevel():ChangeRoom(idx)
 end
 
--- Room RoomDescriptor List(RoomDescriptor) -> nil
+-- int itn List(int) -> nil
 function roomTransition(startRoom, nextRoom, pathToStart)
   -- TODO change teleport with whatever Kris makes to get Isaac to a room
   return interRoomTransition(startRoom, nextRoom, pathToStart, teleportToRoom)
 end
 
---[[ Room (Room -> List(RoomDescriptor)) (Room -> Boolean) () -> nil
+--[[ A (A -> List(A)) (A -> Boolean) () -> nil
   Perform Depth-First search on the tree, testing each node with goal test.
   If unsuccessful, use succ to get the successor nodes of this one, 
   then call the transition function update state with how to get from current 
@@ -91,17 +98,24 @@ end
   
   Params
   ------
-  tree: Room - The current room Isaac is in.
-  succ: Room -> List(RoomDescriptor)
+  tree: A - The starting node of search.
+  succ: A -> List(A) - where can I go from my current node?
+  goalTest: A -> Boolean - is the current node the goal?
+  transition: A A -> nil - potentially use side-effects to make the transition between nodes _actually_ occur.
 --]]
 function dfs(tree, succ, goalTest, transition)
   log("DFS started")
   
   frontier = Stack:new()
-  visited = {}
   
-  -- Nodes are (room, path) tuples, where path represents the path taken so far to get there (For backtracking).
+  -- Nodes are (int, path) tuples, where path represents the path taken so far to get there (For backtracking).
   current = {tree, {}}
+  visited = {current}
+  
+  local function nodeExtractor(state)
+    return state[1]
+  end
+  
   while current do
     if goalTest(current[1]) then
       log("DFS ended")
@@ -109,7 +123,7 @@ function dfs(tree, succ, goalTest, transition)
     end
     
     for i, nextNode in ipairs(succ(current[1])) do
-      if not contains(visited, nextNode) then
+      if not contains(map(function (state) return state[1] end, visited), nextNode) then
         nextPath = append(current[2], current[1])
         frontier:push({nextNode, nextPath})
       end
@@ -118,7 +132,12 @@ function dfs(tree, succ, goalTest, transition)
     temp = current
     current = frontier:pop()
     -- How do I _really_ get from this room to the next?
-    transition(temp[1], current)
+    if current then 
+      transition(temp[1], current[1], current[2])
+    end
+  
+    -- You got visited son
+    visited[#visited+1] = current
   end
   
   log("DFS ended")
@@ -126,7 +145,7 @@ function dfs(tree, succ, goalTest, transition)
 end
 
 function getIsaacToBossRoom()
-  return dfs(Game():GetRoom(), levelSucc, bossTest, roomTransition)
+  return dfs(Game():GetLevel():GetCurrentRoomIndex(), levelSucc, bossTest, roomTransition)
 end
 
 --TODO change signature of room transition, mutate strx
