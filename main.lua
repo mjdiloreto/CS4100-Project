@@ -3,6 +3,12 @@ StartDebug();                            -- enable debugging
 local mod = RegisterMod("AI Final", 1);  -- register mod in game
 
 -----------------------------------
+-------- GLOBAL VARIABLES ---------
+-----------------------------------
+-- Level search. Instantiated by gameStart
+local dfsIterator = nil
+
+-----------------------------------
 -------- UTILITY FUNCTIONS --------
 -----------------------------------
 
@@ -118,8 +124,7 @@ function onGameStarted()
   Isaac.ConsoleOutput(string.format("makeIsaacInvincible = %s\n", tostring(makeIsaacInvincible)))
   Isaac.ConsoleOutput(string.format("killAllEnemiesOnRoomStart = %s\n", tostring(killAllEnemiesOnRoomStart)))
   
-  CPrint(Game():GetLevel():GetCurrentRoomIndex())
-  getIsaacToBossRoom()
+  dfsIterator = DfsIterator:new()
 end
 
 -- bind the MC_POST_GAME_STARTED callback to onGameStarted
@@ -157,6 +162,20 @@ end
 
 -- bind the MC_INPUT_ACTION callback to onInputRequest
 mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
+
+
+--------------------------
+--- Using Level Search ---
+--------------------------
+
+function searchLevel()
+  if dfsIterator:hasNext() then 
+    dfsIterator:doNext() 
+    end
+end
+
+mod:AddCallback(ModCallbacks.MC_POST_UPDATE, searchLevel)
+
 
 -------------------------------
 -------- DAMAGE EVENTS --------

@@ -103,49 +103,65 @@ end
   goalTest: A -> Boolean - is the current node the goal?
   transition: A A -> nil - potentially use side-effects to make the transition between nodes _actually_ occur.
 --]]
-function dfs(tree, succ, goalTest, transition)
+function dfs(tree, succ, goalTest, transition, state)
   log("DFS started")
-  
-  frontier = Stack:new()
-  
-  -- Nodes are (int, path) tuples, where path represents the path taken so far to get there (For backtracking).
-  current = {tree, {}}
-  visited = {current}
-  
-  local function nodeExtractor(state)
-    return state[1]
-  end
-  
-  while current do
-    if goalTest(current[1]) then
+
+  while state.current do
+    if goalTest(state.current[1]) then
       log("DFS ended")
-      return current[2]
+      return state.current[2]
     end
     
-    for i, nextNode in ipairs(succ(current[1])) do
-      if not contains(map(function (state) return state[1] end, visited), nextNode) then
-        nextPath = append(current[2], current[1])
-        frontier:push({nextNode, nextPath})
+    for i, nextNode in ipairs(succ(state.current[1])) do
+      if not contains(map(function (state) return state[1] end, state.visited), nextNode) then
+        nextPath = append(state.current[2], state.current[1])
+        state.frontier:push({nextNode, nextPath})
       end
     end
   
-    temp = current
-    current = frontier:pop()
+    temp = state.current
+    state.current = state.frontier:pop()
     -- How do I _really_ get from this room to the next?
-    if current then 
-      transition(temp[1], current[1], current[2])
+    if state.current then 
+      transition(temp[1], state.current[1], state.current[2])
     end
   
     -- You got visited son
-    visited[#visited+1] = current
+    state.visited[#state.visited+1] = state.current
   end
   
   log("DFS ended")
   return {}
 end
 
-function getIsaacToBossRoom()
-  return dfs(Game():GetLevel():GetCurrentRoomIndex(), levelSucc, bossTest, roomTransition)
+function getIsaacToBossRoom(state)
+  return dfs(Game():GetLevel():GetCurrentRoomIndex(), levelSucc, bossTest, roomTransition, state)
+end
+
+-----------------------------------
+------------ ITERATOR -------------
+-----------------------------------
+DfsIterator = {}
+DfsIterator.__index = DfsIterator
+
+function DfsIterator:new()
+  iterObj = {}
+  setmetatable(iterObj, DfsIterator)
+  
+  iterObj.frontier = Stack:new()
+  -- Nodes are (int, path) tuples, where path represents the path taken so far to get there (For backtracking).
+  iterObj.current = {Game():GetLevel():GetCurrentRoomIndex(), {}}
+  iterObj.visited = {current}
+  
+  return iterObj 
+end
+
+function DfsIterator:hasNext()
+  return not bossTest()
+end
+
+function DfsIterator:doNext()
+  return getIsaacToBossRoom(self)
 end
 
 --TODO change signature of room transition, mutate strx
