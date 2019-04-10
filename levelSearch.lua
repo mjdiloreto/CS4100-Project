@@ -1,5 +1,16 @@
 require("stack")
 
+function roomIndexToDoorPosition(goalIdx)
+  room = Game():GetRoom()
+  possibles = getAllDoorsInRoom(room)
+  for slot, idx in pairs(DoorSlot) do
+    door = room:GetDoor(idx)
+    if door and door.TargetRoomIndex == goalIdx then
+      return door.Position
+    end
+  end
+end
+
 --[[ Room -> List(GridEntityDoor)
   Find all the doors in the current room,
 --]]
@@ -136,7 +147,7 @@ function dfs(tree, succ, goalTest, transition, state)
   
     -- You got visited son
     state.visited[#state.visited+1] = state.current
-    return doorPos
+    return roomIndexToDoorPosition(doorPos)
   end
   
   return nil
