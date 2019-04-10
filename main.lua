@@ -10,6 +10,12 @@ PriorityQueue = require("priority_queue") -- import priority queues
 -- also we need to special case the on and off spikes, since isaac needs to go over them in some cases when they are off
 
 -----------------------------------
+-------- GLOBAL VARIABLES ---------
+-----------------------------------
+-- Level search. Instantiated by gameStart
+local dfsIterator = nil
+
+-----------------------------------
 -------- UTILITY FUNCTIONS --------
 -----------------------------------
 
@@ -137,6 +143,7 @@ function onGameStarted()
   Isaac.ConsoleOutput(string.format("makeIsaacInvincible = %s\n", tostring(makeIsaacInvincible)))
   Isaac.ConsoleOutput(string.format("killAllEnemiesOnRoomStart = %s\n", tostring(killAllEnemiesOnRoomStart)))
   
+  dfsIterator = DfsIterator:new()
 end
 
 -- bind the MC_POST_GAME_STARTED callback to onGameStarted
@@ -175,6 +182,20 @@ end
 
 -- bind the MC_INPUT_ACTION callback to onInputRequest
 mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
+
+
+--------------------------
+--- Using Level Search ---
+--------------------------
+
+function searchLevel()
+  if dfsIterator:hasNext() then 
+    dfsIterator:doNext() 
+  end
+end
+
+mod:AddCallback(ModCallbacks.MC_POST_UPDATE, searchLevel)
+
 
 -------------------------------
 -------- DAMAGE EVENTS --------
