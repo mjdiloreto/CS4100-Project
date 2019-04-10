@@ -171,7 +171,7 @@ mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
 function searchLevel()
   if dfsIterator:hasNext() then 
     dfsIterator:doNext() 
-    end
+  end
 end
 
 mod:AddCallback(ModCallbacks.MC_POST_UPDATE, searchLevel)
