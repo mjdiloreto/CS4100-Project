@@ -202,11 +202,16 @@ mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
 
 function runLevelSearch()
   if noEnemies() and directions == nil then
-    if dfsIterator:hasNext() then
-      levelSearchDoorPosition = dfsIterator:doNext()
-      directions = getDirectionsTo(levelSearchDoorPosition)
-      directionIndex = 1
-      shouldRunLevelSearch = false
+    if dfsIterator ~= nil then
+      if dfsIterator:hasNext() then
+        levelSearchDoorPosition = dfsIterator:doNext()
+        if levelSearchDoorPosition == nil then
+          local a = 1 -- dummy code to put a debug point on
+        end
+        directions = getDirectionsTo(levelSearchDoorPosition)
+        directionIndex = 1
+        shouldRunLevelSearch = false
+      end
     end
   end
 end
@@ -227,19 +232,21 @@ function onRoomStart()
   pointAndClickPos = nil
   directions = nil
   directionIndex = 1
-  if dfsIterator == nil then
-    dfsIterator = DfsIterator:new()
-  end
   shouldRunLevelSearch = true
 end
 
--- bind the MC_POST_NEW_ROOM callback to onRender
+-- bind the MC_POST_NEW_ROOM callback
 -- this event is triggered every time you enter a room
 mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, onRoomStart)
 
 
+function onLevelStart()
+  dfsIterator = DfsIterator:new()
+end
 
-
+mod:AddCallback(ModCallbacks.MC_POST_NEW_LEVEL, onLevelStart)
+mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, onLevelStart) 
+ 
 -------------------------------
 -------- DAMAGE EVENTS --------
 -------------------------------
@@ -282,7 +289,7 @@ function getPlayerGridIndex()
 end
 
 function getGridIndex(pos)
-   return Game():GetRoom():GetClampedGridIndex(pos)
+  return Game():GetRoom():GetClampedGridIndex(pos)
 end
 
 function getGridPos(index)
@@ -316,7 +323,7 @@ function getAdjacentGridIndices(gridIndex)
   nextIndices[0] = gridIndex - roomWidth -- UP
   nextIndices[1] = gridIndex + roomWidth -- DOWN
   nextIndices[2] = gridIndex - 1         -- LEFT
-  nextIndices[3] = gridIndex + 1         -- RIGHT
+  nextIndices[3] = gridIndex + 1         -- RIGHT  
   return nextIndices
 end
 
@@ -336,31 +343,35 @@ end
 
  -- returns a string representing the enum type of the grid entity at the given index
 function getGridType(gridIndex)
-  local gridEntityType = Game():GetRoom():GetGridEntity(gridIndex):GetType()
-  if gridEntityType == 0  then return "GRID_NULL" end
-  if gridEntityType == 1  then return "GRID_DECORATION" end
-  if gridEntityType == 2  then return "GRID_ROCK" end
-  if gridEntityType == 3  then return "GRID_ROCKB" end
-  if gridEntityType == 4  then return "GRID_ROCKT" end
-  if gridEntityType == 5  then return "GRID_ROCK_BOMB" end
-  if gridEntityType == 6  then return "GRID_ROCK_ALT" end
-  if gridEntityType == 7  then return "GRID_PIT" end
-  if gridEntityType == 8  then return "GRID_SPIKES" end
-  if gridEntityType == 9  then return "GRID_SPIKES_ONOFF" end
-  if gridEntityType == 10 then return "GRID_SPIDERWEB" end
-  if gridEntityType == 11 then return "GRID_LOCK" end
-  if gridEntityType == 12 then return "GRID_TNT" end
-  if gridEntityType == 13 then return "GRID_FIREPLACE" end
-  if gridEntityType == 14 then return "GRID_POOP" end
-  if gridEntityType == 15 then return "GRID_WALL" end
-  if gridEntityType == 16 then return "GRID_DOOR" end
-  if gridEntityType == 17 then return "GRID_TRAPDOOR" end
-  if gridEntityType == 18 then return "GRID_STAIRS" end
-  if gridEntityType == 19 then return "GRID_GRAVITY" end
-  if gridEntityType == 20 then return "GRID_PRESSURE_PLATE" end
-  if gridEntityType == 21 then return "GRID_STATUE" end
-  if gridEntityType == 22 then return "GRID_ROCK_SS" end
-  return nil -- returns nil if it doesn't match a type
+  local gridEntity = Game():GetRoom():GetGridEntity(gridIndex)
+  if gridEntity ~= nil then
+    local gridEntityType = gridEntity:GetType()
+    if gridEntityType == 0  then return "GRID_NULL" end
+    if gridEntityType == 1  then return "GRID_DECORATION" end
+    if gridEntityType == 2  then return "GRID_ROCK" end
+    if gridEntityType == 3  then return "GRID_ROCKB" end
+    if gridEntityType == 4  then return "GRID_ROCKT" end
+    if gridEntityType == 5  then return "GRID_ROCK_BOMB" end
+    if gridEntityType == 6  then return "GRID_ROCK_ALT" end
+    if gridEntityType == 7  then return "GRID_PIT" end
+    if gridEntityType == 8  then return "GRID_SPIKES" end
+    if gridEntityType == 9  then return "GRID_SPIKES_ONOFF" end
+    if gridEntityType == 10 then return "GRID_SPIDERWEB" end
+    if gridEntityType == 11 then return "GRID_LOCK" end
+    if gridEntityType == 12 then return "GRID_TNT" end
+    if gridEntityType == 13 then return "GRID_FIREPLACE" end
+    if gridEntityType == 14 then return "GRID_POOP" end
+    if gridEntityType == 15 then return "GRID_WALL" end
+    if gridEntityType == 16 then return "GRID_DOOR" end
+    if gridEntityType == 17 then return "GRID_TRAPDOOR" end
+    if gridEntityType == 18 then return "GRID_STAIRS" end
+    if gridEntityType == 19 then return "GRID_GRAVITY" end
+    if gridEntityType == 20 then return "GRID_PRESSURE_PLATE" end
+    if gridEntityType == 21 then return "GRID_STATUE" end
+    if gridEntityType == 22 then return "GRID_ROCK_SS" end
+    return "" -- returns empty string if it doesn't match a type
+  end
+  return ""
 end
 
 -- gets all entities in the room and puts them in a table list
@@ -799,6 +810,9 @@ end
 
  -- reduce list of directions to only the directions that navigate around obstacles
 function simplifyDirections(directionList)
+  -- handle trivial case where the table has 0 or 1 entries
+  if tableLength(directionList) < 2 then return directionList end
+  
   local simplifiedList = {}
   local currListIndex = 1
   local prevIndex = getGridIndex(getPlayerPosition())
@@ -818,7 +832,7 @@ end
 
 -- returns a list of Vector indicating the simplest set of directions to get to the given pos
 function getDirectionsTo(pos)
-  return convertListOfIndexToPos(aStarToPos(pos))
+  return convertListOfIndexToPos(simplifyDirections(aStarToPos(pos)))
 end
 
 function printAllGridIndices(listOfDirections)
@@ -980,7 +994,7 @@ function onStep()
       shootDirection = nil
       moveDirectionX = nil
       moveDirectionY = nil
-      if directions ~= nil then
+      if directions ~= nil and directions[directionIndex] then
         -- print all of the grid indexes at their positions
         printAllGridIndices(directions)
         
