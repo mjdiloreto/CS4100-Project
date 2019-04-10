@@ -14,6 +14,24 @@ PriorityQueue = require("priority_queue") -- import priority queues
 -----------------------------------
 -- Level search. Instantiated by gameStart
 local dfsIterator = nil
+local directions = nil
+local timer = 0
+local moveLeftAndRightEvery = 100
+
+local AgentType = { MoveLeftAndRight = 0, SnakeAgent = 1,  DumbPointAndClick = 2, SmartPointAndClick = 3, SmartBoiAgent = 4 }
+local agentType = AgentType.SmartBoiAgent
+local agentTypeString = "SmartBoiAgent"
+
+local isaacMessage = ""
+local isaacMessageTimer = 0
+local isaacMessageTimerInitValue = 0
+
+local pointAndClickPos = nil
+local pointAndClickThreshold = 20
+
+ -- position to go to returned from DFS level search
+local levelSearchDoorPosition = nil
+local shouldRunLevelSearch = false
 
 -----------------------------------
 -------- UTILITY FUNCTIONS --------
@@ -114,7 +132,7 @@ Isaac.ConsoleOutput("--- CS4100 Project Initialized ---\n")
 Isaac.ConsoleOutput("----------------------------------\n")
 Isaac.ConsoleOutput("\n")
 
-modEnabled = false
+modEnabled = true
 
 import("levelSearch")
 import("priority_queue")
@@ -142,8 +160,6 @@ function onGameStarted()
   -- print variables to console
   Isaac.ConsoleOutput(string.format("makeIsaacInvincible = %s\n", tostring(makeIsaacInvincible)))
   Isaac.ConsoleOutput(string.format("killAllEnemiesOnRoomStart = %s\n", tostring(killAllEnemiesOnRoomStart)))
-  
-  dfsIterator = DfsIterator:new()
 end
 
 -- bind the MC_POST_GAME_STARTED callback to onGameStarted
@@ -184,21 +200,44 @@ end
 mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
 
 
+function runLevelSearch()
+  if noEnemies() and directions == nil then
+    if dfsIterator:hasNext() then
+      levelSearchDoorPosition = dfsIterator:doNext()
+      directions = getDirectionsTo(levelSearchDoorPosition)
+      directionIndex = 1
+      shouldRunLevelSearch = false
+    end
+  end
+end
 --------------------------
 --- Using Level Search ---
 --------------------------
-local shouldDoLevelSearch = true
-
-function searchLevel()
-  if dfsIterator:hasNext() then
-    levelSearchDoorPosition = dfsIterator:doNext()
-    directions = getDirectionsTo(levelSearchDoorPosition)
-  end
+function onKill()
+  -- if we have finished killing all enemies, we want to move to the next room
+  -- so we set our directions to the next door for the room we want to visit
+  shouldRunLevelSearch = true
 end
 
--- mod:AddCallback(ModCallbacks.MC_POST_UPDATE, searchLevel)
+-- this event is triggered every kill, which is why we are using it to check the last kill
+mod:AddCallback(ModCallbacks.MC_POST_ENTITY_KILL, onKill)
 
-mod:AddCallback(ModCallbacks.MC_LAST_ENEMY_KILLED, searchLevel)
+-- called whenever you enter a room
+function onRoomStart()
+  pointAndClickPos = nil
+  directions = nil
+  directionIndex = 1
+  if dfsIterator == nil then
+    dfsIterator = DfsIterator:new()
+  end
+  shouldRunLevelSearch = true
+end
+
+-- bind the MC_POST_NEW_ROOM callback to onRender
+-- this event is triggered every time you enter a room
+mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, onRoomStart)
+
+
 
 
 -------------------------------
@@ -214,24 +253,6 @@ mod:AddCallback(ModCallbacks.MC_ENTITY_TAKE_DMG, onPlayerDamage, EntityType.ENTI
 ---------------------------------
 -------- FREQUENT CHECKS --------
 ---------------------------------
-local timer = 0
-local moveLeftAndRightEvery = 100
-
-local AgentType = { MoveLeftAndRight = 0, SnakeAgent = 1,  DumbPointAndClick = 2, SmartPointAndClick = 3, SmartBoiAgent = 4 }
-local agentType = AgentType.SmartBoiAgent
-local agentTypeString = "SmartBoiAgent"
-local directions = nil
-
-local isaacMessage = ""
-local isaacMessageTimer = 0
-local isaacMessageTimerInitValue = 0
-
-local pointAndClickPos = nil
-local pointAndClickThreshold = 20
-
- -- position to go to returned from DFS level search
-local levelSearchDoorPosition = nil
-
 
 -- sets the message to print under the player sprite for the given number of frames (duration)
 function setIsaacMessage(message, duration)
@@ -360,6 +381,22 @@ function getAllRoomEntities()
     end
   end
   return entityGridList
+end
+
+-- are there no enemies in this room?
+function noEnemies()
+  
+  local entityList = Game():GetRoom():GetEntities()
+  
+  local i = 0
+  while true do
+    local entity = entityList:Get(i)
+    if (entity:IsActiveEnemy()) then return false end
+    i = i + 1
+    if (i >= entityList:__len()) then
+      return true
+    end
+  end
 end
 
 -- get a list of all game entities (not GRID entities) at the given grid index
@@ -781,7 +818,7 @@ end
 
 -- returns a list of Vector indicating the simplest set of directions to get to the given pos
 function getDirectionsTo(pos)
-  return convertListOfIndexToPos(simplifyDirections(aStarToPos(pos)))
+  return convertListOfIndexToPos(aStarToPos(pos))
 end
 
 function printAllGridIndices(listOfDirections)
@@ -794,7 +831,8 @@ end
 function printAllGameEntities(listOfEntities)
   for indexInList, entity in pairs(listOfEntities) do
     local screenPos = getScreenPosition(entity.Position)
-    Isaac.RenderText(tostring(getEntityType(entity)) .. " - " .. tostring(entity.Variant), screenPos.X, screenPos.Y, 1, 1, 1, 1)
+    local entityString = tostring(getEntityType(entity))
+    Isaac.RenderText(entityString, screenPos.X - string.len(isaacMessage) * 3, screenPos.Y, 1, 1, 1, 1)
   end
 end
 
@@ -861,7 +899,6 @@ function onStep()
         pointAndClickPos = Input.GetMousePosition(true)
       end
       if pointAndClickPos ~= nil then
-        -- setIsaacMessage("Path to Pos Clear? " .. tostring(checkLineToPointAndClickPos()) .. ", dist: " .. tostring(manhattanDist(getPlayerGridIndex(), getGridIndex(pointAndClickPos))), 100)
         local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
         Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
         
@@ -943,10 +980,7 @@ function onStep()
       shootDirection = nil
       moveDirectionX = nil
       moveDirectionY = nil
-      if levelSearchDoorPosition ~= nil and directions ~= nil and directionIndex <= tableLength(directions) then
-        local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
-        Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
-        
+      if directions ~= nil then
         -- print all of the grid indexes at their positions
         printAllGridIndices(directions)
         
@@ -980,24 +1014,17 @@ function onStep()
     end
   end
   printAdjacentGridIndices()
-  printAllGameEntities(getAllRoomEntities())
+  -- printAllGameEntities(getAllRoomEntities())
 end
 
 -- bind the MC_POST_RENDER callback to onRender
 -- this event is triggered every frame, which is why we are using it to check the input
 mod:AddCallback(ModCallbacks.MC_POST_RENDER, onStep)
 
--- called whenever you enter a room
-function onRoomStart()
-  pointAndClickPos = nil
-  directions = nil
-  directionIndex = 1
+function onUpdate()
+  if shouldRunLevelSearch then
+    runLevelSearch()
+  end
 end
+mod:AddCallback(ModCallbacks.MC_POST_UPDATE, onUpdate)
 
--- bind the MC_POST_NEW_ROOM callback to onRender
--- this event is triggered every time you enter a room
-mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, onRoomStart)
-
--- bind the MC_POST_RENDER callback to onRender
--- this event is triggered every kill, which is why we are using it to check the last kill
-mod:AddCallback(ModCallbacks.MC_POST_ENTITY_KILL, onKill)

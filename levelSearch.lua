@@ -18,7 +18,10 @@ function getAllDoorsInRoom(room)
   doors = {}
   for slot, idx in pairs(DoorSlot) do
     door = room:GetDoor(idx)
-    if door then
+    if door and
+    (door.TargetRoomType == RoomType.ROOM_DEFAULT
+      or door.TargetRoomType == RoomType.ROOM_BOSS
+      or door.TargetRoomType == RoomType.ROOM_TREASURE) then
       table.insert(doors, door)
     end
   end
