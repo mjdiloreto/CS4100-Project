@@ -187,14 +187,18 @@ mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
 --------------------------
 --- Using Level Search ---
 --------------------------
+local shouldDoLevelSearch = true
 
 function searchLevel()
-  if dfsIterator:hasNext() then 
-    dfsIterator:doNext() 
+  if dfsIterator:hasNext() then
+    levelSearchDoorPosition = dfsIterator:doNext()
+    directions = getDirectionsTo(levelSearchDoorPosition)
   end
 end
 
-mod:AddCallback(ModCallbacks.MC_POST_UPDATE, searchLevel)
+-- mod:AddCallback(ModCallbacks.MC_POST_UPDATE, searchLevel)
+
+mod:AddCallback(ModCallbacks.MC_LAST_ENEMY_KILLED, searchLevel)
 
 
 -------------------------------
@@ -213,9 +217,9 @@ mod:AddCallback(ModCallbacks.MC_ENTITY_TAKE_DMG, onPlayerDamage, EntityType.ENTI
 local timer = 0
 local moveLeftAndRightEvery = 100
 
-local AgentType = { MoveLeftAndRight = 0, SnakeAgent = 1,  DumbPointAndClick = 2, SmartPointAndClick = 3 }
-local agentType = AgentType.SmartPointAndClick
-local agentTypeString = "SmartPointAndClick"
+local AgentType = { MoveLeftAndRight = 0, SnakeAgent = 1,  DumbPointAndClick = 2, SmartPointAndClick = 3, SmartBoiAgent = 4 }
+local agentType = AgentType.SmartBoiAgent
+local agentTypeString = "SmartBoiAgent"
 local directions = nil
 
 local isaacMessage = ""
@@ -224,6 +228,10 @@ local isaacMessageTimerInitValue = 0
 
 local pointAndClickPos = nil
 local pointAndClickThreshold = 20
+
+ -- position to go to returned from DFS level search
+local levelSearchDoorPosition = nil
+
 
 -- sets the message to print under the player sprite for the given number of frames (duration)
 function setIsaacMessage(message, duration)
@@ -308,16 +316,16 @@ end
  -- returns a string representing the enum type of the grid entity at the given index
 function getGridType(gridIndex)
   local gridEntityType = Game():GetRoom():GetGridEntity(gridIndex):GetType()
-  if gridEntityType == 0 then return "GRID_NULL" end
-  if gridEntityType == 1 then return "GRID_DECORATION" end
-  if gridEntityType == 2 then return "GRID_ROCK" end
-  if gridEntityType == 3 then return "GRID_ROCKB" end
-  if gridEntityType == 4 then return "GRID_ROCKT" end
-  if gridEntityType == 5 then return "GRID_ROCK_BOMB" end
-  if gridEntityType == 6 then return "GRID_ROCK_ALT" end
-  if gridEntityType == 7 then return "GRID_PIT" end
-  if gridEntityType == 8 then return "GRID_SPIKES" end
-  if gridEntityType == 9 then return "GRID_SPIKES_ONOFF" end
+  if gridEntityType == 0  then return "GRID_NULL" end
+  if gridEntityType == 1  then return "GRID_DECORATION" end
+  if gridEntityType == 2  then return "GRID_ROCK" end
+  if gridEntityType == 3  then return "GRID_ROCKB" end
+  if gridEntityType == 4  then return "GRID_ROCKT" end
+  if gridEntityType == 5  then return "GRID_ROCK_BOMB" end
+  if gridEntityType == 6  then return "GRID_ROCK_ALT" end
+  if gridEntityType == 7  then return "GRID_PIT" end
+  if gridEntityType == 8  then return "GRID_SPIKES" end
+  if gridEntityType == 9  then return "GRID_SPIKES_ONOFF" end
   if gridEntityType == 10 then return "GRID_SPIDERWEB" end
   if gridEntityType == 11 then return "GRID_LOCK" end
   if gridEntityType == 12 then return "GRID_TNT" end
@@ -893,7 +901,6 @@ function onStep()
         directionIndex = 1
       end
       if pointAndClickPos ~= nil and directions ~= nil and directionIndex <= tableLength(directions) then
-        -- setIsaacMessage("Path to Pos Clear? " .. tostring(checkLineToPointAndClickPos()) .. ", dist: " .. tostring(manhattanDist(getPlayerGridIndex(), getGridIndex(pointAndClickPos))), 100)
         local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
         Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
         
@@ -929,6 +936,48 @@ function onStep()
       end
     end
     
+    --------------------------------------------------
+    ------------------ SMART BOI ---------------------
+    --------------------------------------------------
+    if agentType == AgentType.SmartBoiAgent then
+      shootDirection = nil
+      moveDirectionX = nil
+      moveDirectionY = nil
+      if levelSearchDoorPosition ~= nil and directions ~= nil and directionIndex <= tableLength(directions) then
+        local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
+        Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
+        
+        -- print all of the grid indexes at their positions
+        printAllGridIndices(directions)
+        
+        local playerPos =  getPlayerPosition()
+        
+        local xDistToNextPos = directions[directionIndex].X - playerPos.X
+        local yDistToNextPos = directions[directionIndex].Y - playerPos.Y
+        
+        if math.abs(xDistToNextPos) > pointAndClickThreshold then
+          if xDistToNextPos > 0 then
+            moveDirectionX = ButtonAction.ACTION_RIGHT
+            
+          elseif xDistToNextPos < 0 then
+            moveDirectionX = ButtonAction.ACTION_LEFT
+          end
+        end
+        
+        if math.abs(yDistToNextPos) > pointAndClickThreshold then
+          if yDistToNextPos < 0 then
+            moveDirectionY = ButtonAction.ACTION_UP
+            
+          elseif yDistToNextPos > 0 then
+            moveDirectionY = ButtonAction.ACTION_DOWN
+          end
+        end
+        
+        if math.abs(xDistToNextPos) < pointAndClickThreshold and math.abs(yDistToNextPos) < pointAndClickThreshold then
+          directionIndex = directionIndex + 1
+        end
+      end
+    end
   end
   printAdjacentGridIndices()
   printAllGameEntities(getAllRoomEntities())
