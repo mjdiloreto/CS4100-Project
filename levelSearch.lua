@@ -60,7 +60,6 @@ function interRoomTransition(state, moveToAdjacent)
   
   lvl = Game():GetLevel()
   
-  -- TODO use local variables idiot3
   if state.currentRoom ~= state.nextRoom then
     successors = levelSucc(state.currentRoom)
     
@@ -70,7 +69,7 @@ function interRoomTransition(state, moveToAdjacent)
       state.currentRoom = table.remove(state.currentPath)
     end
       
-    moveToAdjacent(state.currentRoom)
+    return moveToAdjacent(state.currentRoom)
     --nextRoom = lvl:GetCurrentRoomIndex()
   else
     state:resetMovePath()
@@ -82,11 +81,15 @@ function teleportToRoom(idx)
   Game():GetLevel():ChangeRoom(idx)
 end
 
+function identity(x)
+  return x
+end
+
 -- int itn List(int) -> nil
 function roomTransition(state)
-  -- TODO change teleport with whatever Kris makes to get Isaac to a room
-  return interRoomTransition(state, teleportToRoom)
+  return interRoomTransition(state, identity)
 end
+
 
 --[[ A (A -> List(A)) (A -> Boolean) () -> nil
   Perform Depth-First search on the tree, testing each node with goal test.
@@ -102,12 +105,12 @@ end
   transition: A A -> nil - potentially use side-effects to make the transition between nodes _actually_ occur.
 --]]
 function dfs(tree, succ, goalTest, transition, state)
-  log("DFS started")
-
-  while state.current do
+  if state.current then
     if goalTest(state.current[1]) then
       log("DFS ended")
-      return state.current[2]
+      
+      -- we made it to the end, so there's nowhere else to go.
+      return nil
     end
     
     for i, nextNode in ipairs(succ(state.current[1])) do
@@ -119,6 +122,8 @@ function dfs(tree, succ, goalTest, transition, state)
   
     temp = state.current
     state.current = state.frontier:pop()
+    
+    doorPos = nil
     -- How do I _really_ get from this room to the next?
     if state.current then 
       state.startRoom = temp[1]
@@ -126,16 +131,15 @@ function dfs(tree, succ, goalTest, transition, state)
       state.nextRoom = state.current[1]
       state.pathToStart = state.current[2]
       state.currentPath = append(state.pathToStart, nil)
-      transition(state)
+      doorPos = transition(state)
     end
   
     -- You got visited son
     state.visited[#state.visited+1] = state.current
-    return
+    return doorPos
   end
   
-  log("DFS ended")
-  return {}
+  return nil
 end
 
 function getIsaacToBossRoom(state)
@@ -148,9 +152,9 @@ end
 DfsIterator = {}
 DfsIterator.__index = DfsIterator
 
-function DfsIterator:new()
+function DfsIterator:new(transition)
   iterObj = {}
-  setmetatable(iterObj, DfsIterator)
+  setmetatable(iterObj, DfsIterator, transition)
   
   iterObj.frontier = Stack:new()
   -- Nodes are (int, path) tuples, where path represents the path taken so far to get there (For backtracking).
@@ -164,6 +168,11 @@ function DfsIterator:new()
   iterObj.currentPath = nil
   iterObj.pathToStart = nil
   
+  iterObj.transition = transition
+  
+  iterObj.firstIteration = nil
+  iterObj.pointAndClickPosition = nil
+  iterObj.roomSearching = nil
   
   return iterObj 
 end
