@@ -104,7 +104,7 @@ end
 function dfs(tree, succ, goalTest, transition, state)
   log("DFS started")
 
-  while state.current do
+  if state.current then
     if goalTest(state.current[1]) then
       log("DFS ended")
       return state.current[2]
