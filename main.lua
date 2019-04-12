@@ -9,9 +9,52 @@ PriorityQueue = require("priority_queue") -- import priority queues
 -- also we need to let isaac know that he can break POOP and FIRE tiles if he wants to get through them
 -- also we need to special case the on and off spikes, since isaac needs to go over them in some cases when they are off
 
+-- swaps key and value pairs
+function makeReverseTable(someTable)
+  local newTable = {}
+  for index, val in pairs(someTable) do
+    newTable[val] = index
+  end
+  return newTable
+end
+
+-- converts a decimal number to a list of booleans representing the binary conversion
+function toBitBools(num)
+    -- returns a table of bits, least significant first.
+    local t={} -- will contain the bits
+    local i=1
+    while num>0 do
+        rest=math.fmod(num,2)
+        t[i]=(rest == 1)
+        i = i + 1
+        num=(num-rest)/2
+    end
+    return t
+end
+
+function isEntityBossDying(entity)
+  local flags = toBitBools(entity:GetEntityFlags())
+  return flags[20-1]
+end
+
+-- is any entity in this room a boss dying?
+function isBossDying()
+  for index, entity in pairs(getAllRoomEntities()) do
+    if isEntityBossDying(entity) then
+      return true
+    end
+  end
+  return false
+end
+
 -----------------------------------
 -------- GLOBAL VARIABLES ---------
 -----------------------------------
+-- reverse tables for enums
+GridEntityEnumReverse = makeReverseTable(GridEntityType)
+DoorSlotEnumReverse = makeReverseTable(DoorSlot)
+RoomTypeEnumReverse = makeReverseTable(RoomType)
+
 -- Level search. Instantiated by gameStart
 local dfsIterator = nil
 local directions = nil
@@ -46,13 +89,6 @@ function import(filename)
     end
     CPrint(err)
   end
-end
-
--- get the length of a table
-function tableLength(T)
-  local count = 0
-  for _ in pairs(T) do count = count + 1 end
-  return count
 end
 
 -- Write str to the Isaac Console
@@ -92,13 +128,40 @@ function map(func, array)
   return new_array
 end
 
+-- Basic functional mapping
+function filter(filter_func, array)
+  local new_array = {}
+  for i,v in ipairs(array) do
+    if filter_func(v) then
+      table.insert(new_array, v)
+    end
+  end
+  return new_array
+end
+
 -- return a new array equal to old plus one new element elt
 function append(array, elt)
-  newArr = {}
+  local newArr = {}
   for k, v in ipairs(array) do
     newArr[k] = v
   end
   newArr[#array+1] = elt
+  return newArr
+end
+
+-- return a new array equal to old plus one new element elt
+function appendAtIndex(array, elt, index)
+  local newArr = {}
+  for k, v in ipairs(array) do
+    if k < index then
+      newArr[k] = v
+    elseif k == index then
+      newArr[k] = elt
+      newArr[k+1] = v
+    else
+      newArr[k+1] = v
+    end
+  end
   return newArr
 end
 
@@ -169,9 +232,9 @@ mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, onGameStarted)
 ------------------------------------
 -------- PROGRAMMATIC INPUT --------
 ------------------------------------
-local shootDirection = ButtonAction.ACTION_SHOOTUP
-local moveDirectionX = ButtonAction.ACTION_LEFT
-local moveDirectionY = nil
+shootDirection = ButtonAction.ACTION_SHOOTUP
+moveDirectionX = ButtonAction.ACTION_LEFT
+moveDirectionY = nil
 
 function onInputRequest(_, entity, inputHook, buttonAction)
   if modEnabled then
@@ -199,19 +262,175 @@ end
 -- bind the MC_INPUT_ACTION callback to onInputRequest
 mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, onInputRequest)
 
+function getCurrentRoom()
+  return Game():GetLevel():GetCurrentRoomIndex()
+end
 
-function runLevelSearch()
-  if noEnemies() and directions == nil then
-    if dfsIterator ~= nil then
-      if dfsIterator:hasNext() then
-        levelSearchDoorPosition = dfsIterator:doNext()
-        if levelSearchDoorPosition == nil then
-          local a = 1 -- dummy code to put a debug point on
+function isBossRoom()
+  return Game():GetRoom():GetType() == RoomType.ROOM_BOSS
+end
+
+
+
+
+
+-- if we are in the boss room and we have a trapdoor, then we know that we reached the end of the level
+
+function goToNext()
+  
+end
+
+function getAllDoors()
+  local room = Game():GetRoom()
+  doors = {}
+  for slot, idx in pairs(DoorSlot) do
+    door = room:GetDoor(idx)
+    if door then
+      table.insert(doors, door)
+    end
+  end
+  return doors
+end
+
+function isDoorUnlocked(door)
+  if not door then
+    return false
+  else
+    return not door:IsLocked()
+  end
+end
+
+function isDoorSecret(door)
+  if not door then
+    return false
+  else
+    return (door.TargetRoomType == RoomType.ROOM_SECRET or door.TargetRoomType == RoomType.ROOM_SUPERSECRET) and door:CanBlowOpen()
+  end
+end
+
+-- good doors are unlocked doors that lead to another normal room, the boss, or an item room
+function isGoodDoor(door)
+  return isDoorUnlocked(door) and not isDoorSecret(door) and
+    ((door.TargetRoomType == RoomType.ROOM_DEFAULT) or
+    (door.TargetRoomType == RoomType.ROOM_BOSS) or 
+    (door.TargetRoomType == RoomType.ROOM_TREASURE))
+end
+
+
+
+function makeDoorPair(door)
+  return {door, DoorSlotEnumReverse[door.Slot]}
+end
+
+function getGoodDoors()
+  return filter(isGoodDoor, getAllDoors())
+end
+
+function getTargetRoomIndex(door)
+  return door.TargetRoomIndex
+end
+
+visitedRooms = {}
+roomStack = Stack:new()
+initialRoom = nil -- a triple of roomIndex, door, and path
+currentPath = Stack:new()
+
+function setInitialLevelSearchParams()
+  visitedRooms = {}
+  roomStack = Stack:new()
+  initialRoom = {getCurrentRoom(), {}}
+  roomStack:push(initialRoom)
+end
+
+
+
+function dfsToNextRoom()
+  while not roomStack:isEmpty() do
+    local topOfStack = roomStack:pop()
+    local currentRoom = topOfStack[1]
+    local pathToRoom = topOfStack[2]
+    -- if we are in the boss room we want to navigate to the trap door to advance to the next level
+    if isBossRoom() and getTrapDoor() ~= nil then
+      return getTrapDoor().Position
+    end
+    if (not visitedRooms[currentRoom]) then
+      visitedRooms[currentRoom] = true
+      for indexInList, nextDoor in pairs(getGoodDoors()) do
+        local nextRoomIndex = getTargetRoomIndex(nextDoor)
+        if (not visitedRooms[nextRoomIndex]) then
+          roomStack:push({nextRoomIndex, append(pathToRoom, nextRoomIndex)})
         end
-        directions = getDirectionsTo(levelSearchDoorPosition)
-        directionIndex = 1
-        shouldRunLevelSearch = false
       end
+    end
+    -- return the door to go to, accounting for the fact that
+    -- this room must be the previous room on the backtracking path
+    -- if we are not exploring a new node here
+    return getDoorTo(roomStack:peek()[1]).Position
+  end
+end
+
+function getDoorTo(roomIndex)
+  local allDoors = getAllDoors()
+  for listIndex, door in pairs(allDoors) do
+    if getTargetRoomIndex(door) == roomIndex then return door end
+  end
+  return nil
+end
+
+visitedRooms2 = {}
+
+function getNextUnvisitedDoor()
+  local goodDoors = getGoodDoors()
+  for index, door in pairs(goodDoors) do
+    local roomIndex = getTargetRoomIndex(door)
+    if not visitedRooms2[roomIndex] then
+      visitedRooms2[roomIndex] = true
+      return door
+    end
+  end
+  -- else return a random door
+  return goodDoors[math.random(#goodDoors)]
+end
+
+function getClosestFromIndices(gridIndexList)
+  local closestDist = manhattanDist(getGridIndex(getPlayerPosition()), gridIndexList[1])
+  local closestIndex = gridIndexList[1]
+  for indexInList, gridIndex in pairs(gridIndexList) do
+    local dist = manhattanDist(getGridIndex(getPlayerPosition()), gridIndex)
+    if dist < closestDist then
+      closestDist = dist
+      closestIndex = gridIndex
+    end
+  end
+  return closestIndex
+end
+
+--------------------------------------------
+-- THIS IS WHERE WE UPDATE OUR DIRECTIONS --
+--------------------------------------------
+function runLevelSearch()
+  if (not isBossRoom() and noEnemies()) or (isBossRoom() and noEnemies() and getTrapDoor()) and directions == nil then
+    shouldRunLevelSearch = false
+    if isBossRoom() then
+      
+      -- find position of the closest gridIndex diagonal from the trap door
+      -- and add that to the directions
+      local trapDoor = getTrapDoor().Position
+      local trapDoorGridIndex = getGridIndex(trapDoor)
+      
+      local trapDoorCorners = getCornerGridIndices(trapDoorGridIndex)
+      local cornerToGoTo = getClosestFromIndices(trapDoorCorners)
+      local cornerPos = getGridPos(cornerToGoTo)
+      
+      -- get directions to the corner and then the trap door to make sure it opens
+      local directionsPre = getDirectionsTo(getTrapDoor().Position)
+      directions = appendAtIndex(directionsPre, cornerPos, #directionsPre)
+    else
+      local nextUnvisitedDoor = getNextUnvisitedDoor() 
+      if nextUnvisitedDoor == nil then
+        local b = 1
+      end
+      directions = getDirectionsTo(nextUnvisitedDoor.Position)
     end
   end
 end
@@ -241,7 +460,8 @@ mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, onRoomStart)
 
 
 function onLevelStart()
-  dfsIterator = DfsIterator:new()
+  setInitialLevelSearchParams()
+  visitedRooms2 = {}
 end
 
 mod:AddCallback(ModCallbacks.MC_POST_NEW_LEVEL, onLevelStart)
@@ -327,6 +547,17 @@ function getAdjacentGridIndices(gridIndex)
   return nextIndices
 end
 
+function getCornerGridIndices(gridIndex)
+  local roomWidth = getRoomWidth()
+  local roomHeight = getRoomHeight()
+  local nextIndices = {}
+  nextIndices[0] = gridIndex - roomWidth - 2 -- TOPLEFT
+  nextIndices[1] = gridIndex - roomWidth + 2 -- TOPRIGHT
+  nextIndices[2] = gridIndex + roomWidth - 2 * getRoomWidth() -- BOTTOMLEFT
+  nextIndices[3] = gridIndex + roomWidth + 2 * getRoomWidth() -- BOTTOMRIGHT
+  return nextIndices
+end
+
 -- verify how this works with all entities
 function isGridIndexBlocked(gridIndex)
   -- restrict out of bounds indices
@@ -335,41 +566,58 @@ function isGridIndexBlocked(gridIndex)
   local gridEntity = Game():GetRoom():GetGridEntity(gridIndex)
   if (gridEntity ~= nil) then
     local t = gridEntity:GetType()
-    return not (t == nil or t == 0 or t == 1 or t == 16 or t == 20)
+    return not (t == nil or t == 0 or t == 1 or t == 1 or t == 16 or t == 17 or t == 20)
   else
     return false
   end
 end
 
- -- returns a string representing the enum type of the grid entity at the given index
+function potentialSimplificationConflict(index1, index2)
+  local moveableDistance = math.abs(math.floor(index1 / getRoomWidth()) - math.floor(index2 / getRoomWidth()))
+  local reachableIndex = index1 - moveableDistance + (moveableDistance * getRoomWidth())
+  return reachableIndex
+end
+
+-- returns the first trapdoor in the room
+function getTrapDoor()
+  local currRoom = Game():GetRoom()
+  local i = 1
+  while i < Game():GetRoom():GetGridSize() do
+    local gridEntity = currRoom:GetGridEntity(i)
+    if gridEntity ~= nil and gridEntity:GetType() == GridEntityType.GRID_TRAPDOOR then -- if we have found a TrapDoor
+      return currRoom:GetGridEntity(i)
+    end
+    i = i + 1
+  end
+end
+
+-- returns a string representing the enum type of the grid entity at the given index
+-- 1 --> GRID_DECORATION
+-- 2 --> GRID_ROCK
+-- 3 --> GRID_ROCKB
+-- 4 --> GRID_ROCKT
+-- 5 --> GRID_ROCK_BOMB
+-- 6 --> GRID_ROCK_ALT
+-- 7 --> GRID_PIT
+-- 8 --> GRID_SPIKES
+-- 9 --> GRID_SPIKES_ONOFF
+-- 10 --> GRID_SPIDERWEB
+-- 11 --> GRID_LOCK
+-- 12 --> GRID_TNT
+-- 13 --> GRID_FIREPLACE
+-- 14 --> GRID_POOP
+-- 15 --> GRID_WALL
+-- 16 --> GRID_DOOR
+-- 17 --> GRID_TRAPDOOR
+-- 18 --> GRID_STAIRS
+-- 19 --> GRID_GRAVITY
+-- 20 --> GRID_PRESSURE_PLATE
+-- 21 --> GRID_STATUE
+-- 22 --> GRID_ROCK_SS
 function getGridType(gridIndex)
   local gridEntity = Game():GetRoom():GetGridEntity(gridIndex)
   if gridEntity ~= nil then
-    local gridEntityType = gridEntity:GetType()
-    if gridEntityType == 0  then return "GRID_NULL" end
-    if gridEntityType == 1  then return "GRID_DECORATION" end
-    if gridEntityType == 2  then return "GRID_ROCK" end
-    if gridEntityType == 3  then return "GRID_ROCKB" end
-    if gridEntityType == 4  then return "GRID_ROCKT" end
-    if gridEntityType == 5  then return "GRID_ROCK_BOMB" end
-    if gridEntityType == 6  then return "GRID_ROCK_ALT" end
-    if gridEntityType == 7  then return "GRID_PIT" end
-    if gridEntityType == 8  then return "GRID_SPIKES" end
-    if gridEntityType == 9  then return "GRID_SPIKES_ONOFF" end
-    if gridEntityType == 10 then return "GRID_SPIDERWEB" end
-    if gridEntityType == 11 then return "GRID_LOCK" end
-    if gridEntityType == 12 then return "GRID_TNT" end
-    if gridEntityType == 13 then return "GRID_FIREPLACE" end
-    if gridEntityType == 14 then return "GRID_POOP" end
-    if gridEntityType == 15 then return "GRID_WALL" end
-    if gridEntityType == 16 then return "GRID_DOOR" end
-    if gridEntityType == 17 then return "GRID_TRAPDOOR" end
-    if gridEntityType == 18 then return "GRID_STAIRS" end
-    if gridEntityType == 19 then return "GRID_GRAVITY" end
-    if gridEntityType == 20 then return "GRID_PRESSURE_PLATE" end
-    if gridEntityType == 21 then return "GRID_STATUE" end
-    if gridEntityType == 22 then return "GRID_ROCK_SS" end
-    return "" -- returns empty string if it doesn't match a type
+    return GridEntityEnumReverse[gridEntity:GetType()]
   end
   return ""
 end
@@ -729,22 +977,22 @@ function printAdjacentGridIndices()
   rightIsBlocked = isGridIndexBlocked(n[3])
   Isaac.RenderText(currentIndex, screenPos.X - string.len(currentIndex) * 3, screenPos.Y - yOffset, 1, 1, 1, 1)
   if (upIsBlocked) then
-    Isaac.RenderText(upIndex .. ": " .. getGridType(n[0]), screenPos.X - string.len(upIndex) * 3, screenPos.Y - yOffset - 30, 1, 0, 0, 1)
+    Isaac.RenderText(upIndex .. ": " .. tostring(getGridType(n[0])), screenPos.X - string.len(upIndex) * 3, screenPos.Y - yOffset - 30, 1, 0, 0, 1)
   else
     Isaac.RenderText(upIndex, screenPos.X - string.len(upIndex) * 3, screenPos.Y - yOffset - 30, 1, 1, 1, 1)
   end
   if (downIsBlocked) then
-    Isaac.RenderText(downIndex .. ": " .. getGridType(n[1]), screenPos.X - string.len(downIndex) * 3, screenPos.Y - yOffset + 30, 1, 0, 0, 1)
+    Isaac.RenderText(downIndex .. ": " .. tostring(getGridType(n[1])), screenPos.X - string.len(downIndex) * 3, screenPos.Y - yOffset + 30, 1, 0, 0, 1)
   else
     Isaac.RenderText(downIndex, screenPos.X - string.len(downIndex) * 3, screenPos.Y - yOffset + 30, 1, 1, 1, 1)
   end
   if (leftIsBlocked) then
-    Isaac.RenderText(getGridType(n[2]) .. ": " .. leftIndex, screenPos.X - string.len(getGridType(n[2]) .. ": " .. leftIndex) * 5 - 30, screenPos.Y - yOffset, 1, 0, 0, 1)
+    Isaac.RenderText(tostring(getGridType(n[2])) .. ": " .. leftIndex, screenPos.X - string.len(getGridType(n[2]) .. ": " .. leftIndex) * 5 - 30, screenPos.Y - yOffset, 1, 0, 0, 1)
   else
     Isaac.RenderText(leftIndex, screenPos.X - string.len(leftIndex) * 3 - 30, screenPos.Y - yOffset, 1, 1, 1, 1)
   end
   if (rightIsBlocked) then
-    Isaac.RenderText(rightIndex .. ": " .. getGridType(n[3]), screenPos.X - string.len(rightIndex) * 3 + 30, screenPos.Y - yOffset, 1, 0, 0, 1)
+    Isaac.RenderText(rightIndex .. ": " .. tostring(getGridType(n[3])), screenPos.X - string.len(rightIndex) * 3 + 30, screenPos.Y - yOffset, 1, 0, 0, 1)
   else
     Isaac.RenderText(rightIndex, screenPos.X - string.len(rightIndex) * 3 + 30, screenPos.Y - yOffset, 1, 1, 1, 1)
   end
@@ -811,7 +1059,7 @@ end
  -- reduce list of directions to only the directions that navigate around obstacles
 function simplifyDirections(directionList)
   -- handle trivial case where the table has 0 or 1 entries
-  if tableLength(directionList) < 2 then return directionList end
+  if #directionList < 2 then return directionList end
   
   local simplifiedList = {}
   local currListIndex = 1
@@ -826,7 +1074,7 @@ function simplifyDirections(directionList)
     end
   end
   -- add last grid index in case the last move was valid
-  simplifiedList[currListIndex] = directionList[tableLength(directionList)]
+  simplifiedList[currListIndex] = directionList[#directionList]
   return simplifiedList
 end
 
@@ -846,8 +1094,16 @@ function printAllGameEntities(listOfEntities)
   for indexInList, entity in pairs(listOfEntities) do
     local screenPos = getScreenPosition(entity.Position)
     local entityString = tostring(getEntityType(entity))
-    Isaac.RenderText(entityString, screenPos.X - string.len(isaacMessage) * 3, screenPos.Y, 1, 1, 1, 1)
+    Isaac.RenderText(entityString, screenPos.X - string.len(entityString) * 3, screenPos.Y, 1, 1, 1, 1)
   end
+end
+
+function printDFS()
+  local currentRoomIndex = "currentRoom = " .. tostring(getCurrentRoom())
+  Isaac.RenderText("LEVEL SEARCH", 100, 70, 1, 1, 1, 1)
+  Isaac.RenderText(currentRoomIndex, 100, 100, 1, 1, 1, 1)
+  local topOfRoomStack = "top of RoomStack = " .. tostring(roomStack:peek()[1])
+  Isaac.RenderText(topOfRoomStack, 100, 130, 1, 1, 1, 1)
 end
 
 -- code to be run every frame
@@ -951,7 +1207,7 @@ function onStep()
         directions = getDirectionsTo(pointAndClickPos)
         directionIndex = 1
       end
-      if pointAndClickPos ~= nil and directions ~= nil and directionIndex <= tableLength(directions) then
+      if pointAndClickPos ~= nil and directions ~= nil and directionIndex <= #directions then
         local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
         Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
         
@@ -1006,18 +1262,22 @@ function onStep()
         if math.abs(xDistToNextPos) > pointAndClickThreshold then
           if xDistToNextPos > 0 then
             moveDirectionX = ButtonAction.ACTION_RIGHT
+            shootDirection = ButtonAction.ACTION_SHOOTRIGHT
             
           elseif xDistToNextPos < 0 then
             moveDirectionX = ButtonAction.ACTION_LEFT
+            shootDirection = ButtonAction.ACTION_SHOOTLEFT
           end
         end
         
         if math.abs(yDistToNextPos) > pointAndClickThreshold then
           if yDistToNextPos < 0 then
             moveDirectionY = ButtonAction.ACTION_UP
+            shootDirection = ButtonAction.ACTION_SHOOTUP
             
           elseif yDistToNextPos > 0 then
             moveDirectionY = ButtonAction.ACTION_DOWN
+            shootDirection = ButtonAction.ACTION_SHOOTDOWN
           end
         end
         
@@ -1028,6 +1288,7 @@ function onStep()
     end
   end
   printAdjacentGridIndices()
+  -- printDFS()
   -- printAllGameEntities(getAllRoomEntities())
 end
 

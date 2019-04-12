@@ -39,6 +39,16 @@ function Stack:iterator()
   end
 end
 
+-- return whether the stack is empty or not
+function Stack:isEmpty()
+  return self.stack[1] == nil
+end
+
+-- look at the top element without removing it
+function Stack:peek()
+  return self.stack[1]
+end
+
 --------------------------------
 ------------ TESTS -------------
 --------------------------------
