@@ -553,8 +553,8 @@ function getCornerGridIndices(gridIndex)
   local nextIndices = {}
   nextIndices[0] = gridIndex - roomWidth - 2 -- TOPLEFT
   nextIndices[1] = gridIndex - roomWidth + 2 -- TOPRIGHT
-  nextIndices[2] = gridIndex + roomWidth - 2 * getRoomWidth() -- BOTTOMLEFT
-  nextIndices[3] = gridIndex + roomWidth + 2 * getRoomWidth() -- BOTTOMRIGHT
+  nextIndices[2] = gridIndex + 2*roomWidth - 1 -- BOTTOMLEFT
+  nextIndices[3] = gridIndex + 2*roomWidth + 1 -- BOTTOMRIGHT
   return nextIndices
 end
 
