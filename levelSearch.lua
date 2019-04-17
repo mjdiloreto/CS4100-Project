@@ -67,24 +67,27 @@ end
   moveToAdjacent: int -> nil - Given the room index of a room adjacent to the current one, move Isaac to that room.
 --]]
 function interRoomTransition(state, moveToAdjacent)
-  -- TODO use the room navigation algorithm to get to the door
+  
+  if not state.backupPath then return nil end
+  
   local function roomDescToInt(roomDesc)
     return roomDesc.GridIndex
   end
   
   lvl = Game():GetLevel()
   
-  if state.currentRoom ~= state.nextRoom then
-    successors = levelSucc(state.currentRoom)
+  if state.current[1] ~= state.nextRoom then
+    successors = levelSucc(state.current[1])
     
-    if contains(successors, state.nextRoom) then
-      state.currentRoom = state.nextRoom
+    if contains(successors, state.nextRoom[1]) then
+      state:resetMovePath()
+      state.current = state.nextRoom
+      return moveToAdjacent(state.nextRoom[1])
     else
-      state.currentRoom = table.remove(state.currentPath)
+      temp = table.remove(state.backupPath)
+      state.current = {temp, append(state.current[2], state.current[1])}
+      return moveToAdjacent(state.current[1])
     end
-      
-    return moveToAdjacent(state.currentRoom)
-    --nextRoom = lvl:GetCurrentRoomIndex()
   else
     state:resetMovePath()
   end
@@ -134,22 +137,17 @@ function dfs(tree, succ, goalTest, transition, state)
       end
     end
   
-    temp = state.current
-    state.current = state.frontier:pop()
+    state.nextRoom = state.frontier:pop()
     
     doorPos = nil
     -- How do I _really_ get from this room to the next?
-    if state.current then 
-      state.startRoom = temp[1]
-      state.currentRoom = state.startRoom
-      state.nextRoom = state.current[1]
-      state.pathToStart = state.current[2]
-      state.currentPath = append(state.pathToStart, nil)
+    if state.nextRoom then 
+      state.backupPath = state.current[2]
       doorPos = transition(state)
     end
   
     -- You got visited son
-    state.visited[#state.visited+1] = state.current
+    state.visited[#state.visited+1] = state.nextRoom
     return roomIndexToDoorPosition(doorPos)
   end
   
@@ -166,9 +164,9 @@ end
 DfsIterator = {}
 DfsIterator.__index = DfsIterator
 
-function DfsIterator:new(transition)
+function DfsIterator:new()
   iterObj = {}
-  setmetatable(iterObj, DfsIterator, transition)
+  setmetatable(iterObj, DfsIterator)
   
   iterObj.frontier = Stack:new()
   -- Nodes are (int, path) tuples, where path represents the path taken so far to get there (For backtracking).
@@ -176,17 +174,9 @@ function DfsIterator:new(transition)
   iterObj.visited = {current}
   
   -- If backtracking will take many steps, we need to iterate it.
-  iterObj.startRoom = nil
-  iterObj.nextRoom = nil
-  iterObj.currentRoom = nil
-  iterObj.currentPath = nil
-  iterObj.pathToStart = nil
+  iterObj.backupPath = nil
   
-  iterObj.transition = transition
-  
-  iterObj.firstIteration = nil
-  iterObj.pointAndClickPosition = nil
-  iterObj.roomSearching = nil
+  iterObj.transition = roomTransition
   
   return iterObj 
 end
@@ -196,15 +186,14 @@ function DfsIterator:hasNext()
 end
 
 function DfsIterator:doNext()
+  self.currentRoom = Game():GetLevel():GetCurrentRoomIndex()
+  intermediate = self.transition(self)
+  if intermediate then return intermediate end
   return getIsaacToBossRoom(self)
 end
 
 function DfsIterator:resetMovePath()
-  self.startRoom = nil
-  self.nextRoom = nil
-  self.currentRoom = nil
-  self.currentPath = nil
-  self.pathToStart = nil
+  self.backupPath = nil
 end
 
 --TODO change signature of room transition, mutate strx
