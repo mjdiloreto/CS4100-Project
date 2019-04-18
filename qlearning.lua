@@ -1,7 +1,3 @@
-from game import Directions, Agent, Actions
-
-import random,util,time
-
 function raiseNotDefined()
   error("not defined")
 end
@@ -40,10 +36,13 @@ function ValueEstimationAgent:new(alpha, epsilon, gamma, numTraining)
   numTraining - number of training episodes, i.e. no learning after these many episodes
   --]]
   
-  self.alpha = alpha or 1.0
-  self.epsilon = epsilon or 0.05
-  self.discount = gamma or 0.8
-  self.numTraining = numTraining or 10
+  obj = {}
+  setmetatable(obj, ValueEstimationAgent)
+  obj.alpha = alpha or 1.0
+  obj.epsilon = epsilon or 0.05
+  obj.discount = gamma or 0.8
+  obj.numTraining = numTraining or 10
+  return obj
 end
   
 
@@ -85,7 +84,6 @@ function ValueEstimationAgent:getAction(state)
   raiseNotDefined()
 end
 
-
 --[[
   Abstract Reinforcemnt Agent: A ValueEstimationAgent
   which estimates Q-Values (as well as policies) from experience
@@ -103,6 +101,31 @@ ReinforcementAgent = {}
 setmetatable(ReinforcementAgent, ValueEstimationAgent)
 ReinforcementAgent.__index = ReinforcementAgent
     
+function ReinforcementAgent:new(actionFn, numTraining, epsilon, alpha, gamma)
+  --[[
+  actionFn: Function which takes a state and returns the list of legal actions
+
+  alpha    - learning rate
+  epsilon  - exploration rate
+  gamma    - discount factor
+  numTraining - number of training episodes, i.e. no learning after these many episodes
+  --]]
+  obj = {}
+  setmetatable(obj, ReinforcementAgent)
+  if actionFn == nil then
+    actionFn = function(state) return state.getLegalActions() end
+  end
+  obj.actionFn = actionFn
+  obj.episodesSoFar = 0
+  obj.accumTrainRewards = 0.0
+  obj.accumTestRewards = 0.0
+  obj.numTraining = numTraining or 100
+  obj.epsilon = epsilon or 0.5
+  obj.alpha = alpha or 0.5
+  obj.discount = gamma or 1
+  return obj
+end
+
 function ReinforcementAgent:update(state, action, nextState, reward)
   --[[  This class will call this function, which you write, after
         observing a transition and reward
@@ -127,7 +150,7 @@ function ReinforcementAgent:observeTransition(state,action,nextState,deltaReward
 
     NOTE: Do *not* override or call this function
   --]]
-  self.episodeRewards += deltaReward
+  self.episodeRewards = self.episodeRewards + deltaReward
   self.update(state,action,nextState,deltaReward)
 end
 
@@ -145,11 +168,11 @@ function ReinforcementAgent:stopEpisode()
     Called by environment when episode is done
   --]]
   if self.episodesSoFar < self.numTraining then
-    self.accumTrainRewards += self.episodeRewards
+    self.accumTrainRewards = self.accumTrainRewards + self.episodeRewards
   else
-    self.accumTestRewards += self.episodeRewards
+    self.accumTestRewards = self.accumTestRewards + self.episodeRewards
   end
-  self.episodesSoFar += 1
+  self.episodesSoFar = self.episodesSoFar + 1
   if self.episodesSoFar >= self.numTraining then
     -- Take off the training wheels
     self.epsilon = 0.0    -- no exploration
@@ -164,28 +187,6 @@ end
 
 function ReinforcementAgent:isInTesting()
   return not self.isInTraining()
-end
-
-function ReinforcementAgent:__init__(actionFn, numTraining, epsilon, alpha, gamma)
-  --[[
-  actionFn: Function which takes a state and returns the list of legal actions
-
-  alpha    - learning rate
-  epsilon  - exploration rate
-  gamma    - discount factor
-  numTraining - number of training episodes, i.e. no learning after these many episodes
-  --]]
-  if actionFn == nil then
-    actionFn = function(state) state.getLegalActions() end
-  end
-  self.actionFn = actionFn
-  self.episodesSoFar = 0
-  self.accumTrainRewards = 0.0
-  self.accumTestRewards = 0.0
-  self.numTraining = numTraining or 100
-  self.epsilon = epsilon or 0.5
-  self.alpha = alpha or 0.5
-  self.discount = gamma or 1
 end
 
 function ReinforcementAgent:setEpsilon(epsilon)
@@ -228,3 +229,58 @@ function ReinforcementAgent:registerInitialState(state)
     Isaac.ConsoleOutput('Beginning %s episodes of Training', tostring(self.numTraining))
   end
 end
+
+-------------------------------------------------------------------------------
+------------------------------- ISAAC SPECIFIC --------------------------------
+-------------------------------------------------------------------------------
+
+
+--[[
+   ApproximateQLearningAgent
+   You should only have to overwrite getQValue
+   and update.  All other QLearningAgent functions
+   should work as is.
+--]]  
+    
+ApproximateQAgent = {}
+setmetatable(ApproximateQAgent, ReinforcementAgent)
+ApproximateQAgent.__index = ApproximateQAgent
+    
+function ApproximateQAgent:new(self, extractor, ...)
+  obj = PacmanQAgent:new(...);
+  self.featExtractor = extractor
+  self.weights = {}  -- util.Counter()
+  return obj
+end
+
+function ApproximateQAgent:getWeights()
+    return self.weights
+end
+
+function ApproximateQAgent:getQValue(state, action)
+  --[[
+    Should return Q(state,action) = w * featureVector
+    where * is the dotProduct operator
+  --]]
+  result = 0
+  for i, feat in pairs(self.featExtractor(state, action)) do
+    result = result + (self.weights[i] * feat)
+  end
+  return result
+  --return sum([self.weights[i] * feat for i, feat in self.featExtractor.getFeatures(state, action).items()])
+end
+
+function ApproximateQAgent:update(state, action, nextState, reward)
+  --[[
+     Should update your weights based on transition
+  --]]
+  nextBest = self.computeValueFromQValues(nextState) 
+  difference = (reward + self.discount * nextBest) - self.getQValue(state, action)
+
+  for i, feat in pairs(self.featExtractor(state, action)) do
+    self.weights[i] = self.weights[i] + self.alpha * difference * feat
+  end
+end
+
+
+Vector:ForceError()
