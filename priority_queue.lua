@@ -23,8 +23,7 @@ License: zlib
 
 local floor = math.floor
 
-
-local PriorityQueue = {}
+PriorityQueue = {}
 PriorityQueue.__index = PriorityQueue
 
 setmetatable(
@@ -48,6 +47,14 @@ function PriorityQueue:initialize()
     ]]--
     self.heap = {}
     self.current_size = 0
+end
+
+function PriorityQueue:new()
+  obj = {}
+  setmetatable(obj, PriorityQueue) -- make the obj a PriorityQueue
+  obj.heap = {}
+  obj.current_size = 0
+  return obj
 end
 
 function PriorityQueue:empty()
@@ -85,6 +92,23 @@ function PriorityQueue:put(v, p)
     self.heap[self.current_size + 1] = {v, p}
     self.current_size = self.current_size + 1
     self:swim()
+end
+
+function PriorityQueue:update(v, p)
+    --[[ Update an item in the queue.
+
+    Args:
+        v: the item to be updated
+        p(number): the new priority of the item
+    ]]--
+    --
+    for index, entry in pairs(self.heap) do
+      if entry[1] == v then
+        self.heap[index][2] = p
+        self:swim()
+        return
+      end
+    end
 end
 
 function PriorityQueue:sink()
