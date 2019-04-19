@@ -1,6 +1,6 @@
 --[[
   isaac_utils.lua
- 
+
   Utility functions for manipulating objects from the Binding of Isaac: Afterbirth API
 ]]
 
@@ -98,7 +98,7 @@ end
 function isGoodDoor(door)
   return isDoorUnlocked(door) and not isDoorSecret(door) and
     ((door.TargetRoomType == RoomType.ROOM_DEFAULT) or
-    (door.TargetRoomType == RoomType.ROOM_BOSS) or 
+    (door.TargetRoomType == RoomType.ROOM_BOSS) or
     (door.TargetRoomType == RoomType.ROOM_TREASURE))
 end
 
@@ -218,18 +218,18 @@ function getUnpressedPressurePlates()
     local gridEntity = currRoom:GetGridEntity(i)
     if gridEntity ~= nil and gridEntity:GetType() == GridEntityType.GRID_PRESSURE_PLATE
     and gridEntity:GetSaveState().State == 0 then
-      pressurePlates = append(pressurePlates, getGridIndex(gridEntity.Position)) 
+      pressurePlates = append(pressurePlates, getGridIndex(gridEntity.Position))
     end
     i = i + 1
   end
   return pressurePlates
 end
-  
+
 
 -- gets all entities in the room and puts them in a table list
 function getAllRoomEntities()
   local entityList = Game():GetRoom():GetEntities()
-  
+
   local entityGridList = {}
   local listIndex = 1
   local i = 0
@@ -248,9 +248,9 @@ end
 
 -- are there no enemies in this room?
 function noEnemies()
-  
+
   local entityList = Game():GetRoom():GetEntities()
-  
+
   local i = 0
   while true do
     local entity = entityList:Get(i)
@@ -265,7 +265,7 @@ end
 -- get a list of all game entities (not GRID entities) at the given grid index
 function getAllRoomEntitiesAtIndex(gridIndex)
   local entityList = Game():GetRoom():GetEntities()
-  
+
   local entityGridList = {}
   local listIndex = 1
   local i = 0

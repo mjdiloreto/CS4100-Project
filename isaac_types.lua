@@ -36,28 +36,28 @@ end
 
 -- returns a string representing the enum type of the given game entity
 function getEntityType(entity)
-  
+
   local entityType = entity.Type
   local entityVariant = entity.Variant
-  
+
   -- weird misc type that the game uses for random entities
   if entityType == 1000 then return "ENTITY_MISC" end
-  
+
   -- filter bogus input
   if entityType < 0 or entityType > 225 then return nil end
-  
+
   -- match type
   if entityType == 0   then return "ENTITY_NULL" end
   if entityType == 1   then return "ENTITY_PLAYER" end
   if entityType == 2   then return "ENTITY_TEAR" end
   if entityType == 3   then return "ENTITY_FAMILIAR" end
   if entityType == 4   then return "ENTITY_BOMBDROP" end
-  
+
   -- there's a lot of different pickups lol
   if entityType == 5 then
     local pickupString = "ENTITY_PICKUP"
     local variantString = ""
-    
+
     -- define variants
     if entityVariant == 20 then
       variantString = "COIN"
@@ -80,7 +80,7 @@ function getEntityType(entity)
     elseif entityVariant == 340 then
       variantString = "TROPHY"
     end
-    
+
     -- return string
     if variantString == "" then
       return pickupString
@@ -88,7 +88,7 @@ function getEntityType(entity)
       return pickupString .. "_" .. variantString
     end
   end
-  
+
   if entityType == 6   then return "ENTITY_SLOT" end
   if entityType == 7   then return "ENTITY_LASER" end
   if entityType == 8   then return "ENTITY_KNIFE" end

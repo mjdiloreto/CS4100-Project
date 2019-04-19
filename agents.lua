@@ -1,6 +1,6 @@
 --[[
   agents.lua
- 
+
   Functions detailing agents that play The Binding of Isaac
 ]]
 
@@ -19,44 +19,44 @@ function SmartBoiAgent()
   shootDirection = nil
   moveDirectionX = nil
   moveDirectionY = nil
-  
+
   -- our agent should never give up on the goal if we are forcing it there
   local movementThreshold = pointAndClickThreshold
   if directions and directionIndex == #directions then
     movementThreshold = -1
   end
-  
+
   if directions and directions[directionIndex] then
     -- print all of the grid indexes at their positions
     printAllGridIndices(directions)
-    
+
     local playerPos =  getPlayerPosition()
-    
+
     local xDistToNextPos = directions[directionIndex].X - playerPos.X
     local yDistToNextPos = directions[directionIndex].Y - playerPos.Y
-    
+
     if math.abs(xDistToNextPos) > movementThreshold then
       if xDistToNextPos > 0 then
         moveDirectionX = ButtonAction.ACTION_RIGHT
         shootDirection = ButtonAction.ACTION_SHOOTRIGHT
-        
+
       elseif xDistToNextPos < 0 then
         moveDirectionX = ButtonAction.ACTION_LEFT
         shootDirection = ButtonAction.ACTION_SHOOTLEFT
       end
     end
-    
+
     if math.abs(yDistToNextPos) > movementThreshold then
       if yDistToNextPos < 0 then
         moveDirectionY = ButtonAction.ACTION_UP
         shootDirection = ButtonAction.ACTION_SHOOTUP
-        
+
       elseif yDistToNextPos > 0 then
         moveDirectionY = ButtonAction.ACTION_DOWN
         shootDirection = ButtonAction.ACTION_SHOOTDOWN
       end
     end
-    
+
     if directionIndex < #directions then
       if math.abs(xDistToNextPos) <= movementThreshold and math.abs(yDistToNextPos) <= movementThreshold then
         directionIndex = directionIndex + 1
@@ -107,7 +107,7 @@ function PointAndClickAgent()
   shootDirection = nil
   moveDirectionX = nil
   moveDirectionY = nil
-  
+
   if Input.IsMouseBtnPressed(0) then
     pointAndClickPos = Input.GetMousePosition(true)
     directions = getDirectionsTo(pointAndClickPos)
@@ -116,33 +116,33 @@ function PointAndClickAgent()
   if pointAndClickPos ~= nil and directions and directionIndex <= #directions then
     local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
     Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
-    
+
     -- print all of the grid indexes at their positions
     printAllGridIndices(directions)
-    
+
     local playerPos =  getPlayerPosition()
-    
+
     local xDistToNextPos = directions[directionIndex].X - playerPos.X
     local yDistToNextPos = directions[directionIndex].Y - playerPos.Y
-    
+
     if math.abs(xDistToNextPos) > pointAndClickThreshold then
       if xDistToNextPos > 0 then
         moveDirectionX = ButtonAction.ACTION_RIGHT
-        
+
       elseif xDistToNextPos < 0 then
         moveDirectionX = ButtonAction.ACTION_LEFT
       end
     end
-    
+
     if math.abs(yDistToNextPos) > pointAndClickThreshold then
       if yDistToNextPos < 0 then
         moveDirectionY = ButtonAction.ACTION_UP
-        
+
       elseif yDistToNextPos > 0 then
         moveDirectionY = ButtonAction.ACTION_DOWN
       end
     end
-    
+
     -- move on to next position if we reach this one, unless we are forcing to move to the goal
     if math.abs(xDistToNextPos) <= pointAndClickThreshold and
     math.abs(yDistToNextPos) <= pointAndClickThreshold then

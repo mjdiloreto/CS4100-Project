@@ -4,11 +4,11 @@ function aStarRoomSearch(index1, index2)
   local closedNodes = {}
   local g = {}
   local pq  = PriorityQueue:new()
-  
+
   local initialNode = {index1, {}} -- a tuple of value and path
   pq:put(initialNode, 0)
   g[index1] = 0
-  
+
   while (not pq:empty()) do
     local topOfQueue = pq:pop()
     local currentIndex = topOfQueue[1]
@@ -59,16 +59,16 @@ end
 -- the next valid indices are the horizontals and diagonals that isaac can move to
 function nextValidGridIndices(gridIndex, goalIndex)
   local nextIndices = {}
-  
+
   -- HORIZONTALS: UP, DOWN, LEFT, RIGHT
   local horizontalIndices = getHorizontalGridIndices(gridIndex)
-  
+
   -- DIAGONALS: TOPLEFT, TOPRIGHT, BOTTOMLEFT, BOTTOMRIGHT
   local diagonalIndices = getDiagonalGridIndices(gridIndex)
-  
+
   nextIndices = nextValidGridIndicesHelper(horizontalIndices, gridIndex, goalIndex, false, nextIndices)
   nextIndices = nextValidGridIndicesHelper(diagonalIndices, gridIndex, goalIndex, true, nextIndices)
-  
+
   return nextIndices
 end
 
@@ -78,11 +78,11 @@ function nextValidGridIndicesHelper(adjacentIndices, gridIndex, goalIndex, isDia
   local nextIndices = acc
   for _, successorIndex in pairs(adjacentIndices) do
     if not isGridIndexBlocked(successorIndex)
-    and (not isDiagonal or isDirectPath(gridIndex, successorIndex)) 
+    and (not isDiagonal or isDirectPath(gridIndex, successorIndex))
     or (manhattanDist(gridIndex, goalIndex) == 1 and successorIndex == goalIndex) then
         local succEntity = Game():GetRoom():GetGridEntity(successorIndex)
         local succCost = 0
-        
+
         -- modifiy successor cost
         if succEntity then
           if succEntity:GetType() == GridEntityType.GRID_SPIDERWEB then
@@ -104,12 +104,12 @@ end
 function isGridIndexBlocked(gridIndex)
   -- restrict out of bounds indices
   if (gridIndex > Game():GetRoom():GetGridSize() or gridIndex < 0) then return true end
-  
+
   local gridEntity = Game():GetRoom():GetGridEntity(gridIndex)
   if (gridEntity ~= nil) then
     local t = gridEntity:GetType()
-    return not (t == nil 
-      or t == 0 
+    return not (t == nil
+      or t == 0
       or t == GridEntityType.GRID_DECORATION
       or t == GridEntityType.GRID_SPIKES_ONOFF
       or t == GridEntityType.GRID_TRAPDOOR

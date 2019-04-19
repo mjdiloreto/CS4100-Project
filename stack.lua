@@ -1,16 +1,16 @@
 --[[
   stack.lua
- 
-  This Lua class implementation of a stack data structure was based on Mário Kašuba's function 
+
+  This Lua class implementation of a stack data structure was based on Mário Kašuba's function
   in the book, Lua Game Development Cookbook (2015)
- 
+
 ]]
- 
+
  -- Namespace
 Stack = {}
 -- necessary for lua classes... apparently (http://lua-users.org/wiki/SimpleLuaClasses)
 Stack.__index = Stack
- 
+
 function Stack:new(list)
   obj = {}
   setmetatable(obj, Stack) -- make the obj a Stack
@@ -22,7 +22,7 @@ function Stack:push(item)
   -- put an item on the stack
   self.stack[#self.stack+1] = item
 end
- 
+
 function Stack:pop()
   -- make sure there's something to pop off the stack
   if #self.stack > 0 then
@@ -30,7 +30,7 @@ function Stack:pop()
     return table.remove(self.stack, #self.stack)
   end
 end
- 
+
 function Stack:iterator()
   -- wrap the pop method in a function
   return function()
@@ -57,7 +57,7 @@ function stackTest()
   stack = Stack:new({1})
   CPrint(equal(1, stack:pop()))
   CPrint(equal(nil, stack:pop()))
-  
+
   stack:push(2)
   stack:push(3)
   CPrint(equal(3, stack:pop()))

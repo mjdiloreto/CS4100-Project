@@ -1,8 +1,8 @@
 --[[
   print_utils.lua
- 
+
   Utility functions for printing debug in formation to the screen.
- 
+
 ]]
 
 
@@ -36,7 +36,7 @@ end
 
 function printAdjacentGridIndices()
   currentIndex = tostring(getPlayerGridIndex())
-  
+
   for listIndex, gridIndex in pairs(getAllAdjacentGridIndices(getPlayerGridIndex())) do
     local gridIndexIsBlocked = isGridIndexBlocked(gridIndex)
     local gridPos = getScreenPosition(getGridPos(gridIndex))

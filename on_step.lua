@@ -17,26 +17,26 @@ function onStep()
       setIsaacMessage("AI Enabled (" .. agentTypeString .. ")", 100)
     end
   end
-  
+
   -- print the isaacMessage
   printIsaacMessage()
-  
+
   if modEnabled then
     -- this agent moves left and then right every moveLeftAndRightEvery tics
     if agentType == AgentType.MoveLeftAndRight then
       MoveLeftAndRightAgent()
     end
-    
+
     -- this agent moves and shoots in the last move / shoot direction
     if agentType == AgentType.Snake then
       SnakeAgent()
     end
-    
+
     -- this agent moves directly to the point on the screen that you click!
     if agentType == AgentType.PointAndClick then
       PointAndClickAgent()
     end
-    
+
     if agentType == AgentType.SmartBoi then
       SmartBoiAgent()
     end

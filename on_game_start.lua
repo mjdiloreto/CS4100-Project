@@ -7,7 +7,7 @@ local killAllEnemiesOnRoomStart = true
 
 function onGameStart()
   CPrint("### New Game Started ###")
-  
+
   -- Isaac takes damage but his health never decreases
   if makeIsaacInvincible then
     Isaac.ExecuteCommand("debug 3")
@@ -17,7 +17,7 @@ function onGameStart()
   if killAllEnemiesOnRoomStart then
     Isaac.ExecuteCommand("debug 10")
   end
-  
+
   -- print variables to console
   CPrint(string.format("makeIsaacInvincible = %s", tostring(makeIsaacInvincible)))
   CPrint(string.format("killAllEnemiesOnRoomStart = %s", tostring(killAllEnemiesOnRoomStart)))

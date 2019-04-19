@@ -19,7 +19,7 @@ aStar Room Search :
 -------------------------
 
 -- Write str to the Isaac Console
-function CPrint(str) 
+function CPrint(str)
   Isaac.ConsoleOutput(str.."\n")
 end
 
@@ -57,14 +57,6 @@ import("on_step")
 import("agents")
 import("room_search")
 import("navigator")
-
------------------------------------
--------- GLOBAL VARIABLES ---------
------------------------------------
-
--- Level search. Instantiated by gameStart
-local directions = nil
-local goalTest = nil
 
 --------------------------------
 -------- PROJECT HEADER --------

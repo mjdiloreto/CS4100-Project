@@ -29,7 +29,7 @@ end
 
 function isPassiveItem(pedestalItem)
   local itemId = getPedestalItemId(pedestalItem)
-  
+
   return (itemId == 320 or
     itemId == 11 or
     itemId == 245 or
