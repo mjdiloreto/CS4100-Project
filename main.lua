@@ -4,10 +4,23 @@ local mod = RegisterMod("AI Final", 1);   -- register mod in game
 
 PriorityQueue = require("priority_queue") -- import priority queues
 
--- ENITY STUFF, we need to make sure to walk around slot machines, bums, and pickups
--- also we need to special case trap doors because the simplifyDirections method just ignores them as obstacles
+-- room search:
+-- add cost for spider webs, chests, etc.
+-- Smoothing algorithm for aStarRoomSearch needs to be changed
+  -- isDirectPath doesn't take into account entities
 -- also we need to let isaac know that he can break POOP and FIRE tiles if he wants to get through them
 -- also we need to special case the on and off spikes, since isaac needs to go over them in some cases when they are off
+
+-- TODO nextValidGridIndices needs to be updated to deal with diagonal movement blocking cases
+
+-- TODO add support for other types
+function num(value)
+  local value_type = type(value)
+  if value_type == "boolean" then
+    return value and 1 or 0
+  end
+  return nil
+end
 
 -- swaps key and value pairs
 function makeReverseTable(someTable)
@@ -33,8 +46,13 @@ function toBitBools(num)
 end
 
 function isEntityBossDying(entity)
+  return isEntityFlagTrue(entity, 20)
+end
+
+-- returns if the given entity has the EntityFlag true
+function isEntityFlagTrue(entity, flagNum)
   local flags = toBitBools(entity:GetEntityFlags())
-  return flags[20-1]
+  return flags[flagNum]
 end
 
 -- is any entity in this room a boss dying?
@@ -58,6 +76,7 @@ RoomTypeEnumReverse = makeReverseTable(RoomType)
 -- Level search. Instantiated by gameStart
 local dfsIterator = nil
 local directions = nil
+local goalTest = nil
 local timer = 0
 local moveLeftAndRightEvery = 100
 
@@ -270,16 +289,6 @@ function isBossRoom()
   return Game():GetRoom():GetType() == RoomType.ROOM_BOSS
 end
 
-
-
-
-
--- if we are in the boss room and we have a trapdoor, then we know that we reached the end of the level
-
-function goToNext()
-  
-end
-
 function getAllDoors()
   local room = Game():GetRoom()
   doors = {}
@@ -384,7 +393,6 @@ function getNextUnvisitedDoor()
   for index, door in pairs(goodDoors) do
     local roomIndex = getTargetRoomIndex(door)
     if not visitedRooms2[roomIndex] then
-      visitedRooms2[roomIndex] = true
       return door
     end
   end
@@ -408,39 +416,58 @@ end
 --------------------------------------------
 -- THIS IS WHERE WE UPDATE OUR DIRECTIONS --
 --------------------------------------------
-function runLevelSearch()
-  if (not isBossRoom() and noEnemies()) or (isBossRoom() and noEnemies() and getTrapDoor()) and directions == nil then
-    shouldRunLevelSearch = false
-    if isBossRoom() then
+function updateWhereToGoNext()
+  -- if we haven't tried to find the path yet
+  if directions == nil then
+    -- if there are enemies in the room fight them
+    if (not noEnemies()) then
+      return
+    end
+     
+    local pressurePlates = getUnpressedPressurePlates()
+    if (#pressurePlates > 0) then
+      directions = getDirectionsTo(getGridPos(getClosestFromIndices(pressurePlates)))
+      directionIndex = 1
       
-      -- find position of the closest gridIndex diagonal from the trap door
-      -- and add that to the directions
-      local trapDoor = getTrapDoor().Position
-      local trapDoorGridIndex = getGridIndex(trapDoor)
-      
-      local trapDoorCorners = getCornerGridIndices(trapDoorGridIndex)
-      local cornerToGoTo = getClosestFromIndices(trapDoorCorners)
-      local cornerPos = getGridPos(cornerToGoTo)
-      
-      -- get directions to the corner and then the trap door to make sure it opens
-      local directionsPre = getDirectionsTo(getTrapDoor().Position)
-      directions = appendAtIndex(directionsPre, cornerPos, #directionsPre)
-    else
-      local nextUnvisitedDoor = getNextUnvisitedDoor() 
-      if nextUnvisitedDoor == nil then
-        local b = 1
-      end
-      directions = getDirectionsTo(nextUnvisitedDoor.Position)
+      -- we have reached our button when there is one less button
+      goalTest = function () return #getUnpressedPressurePlates() == #pressurePlates - 1 end
+      return
+    end
+    
+    -- if there are pedestal items in the room, get those first
+    local pedestalItems = getPassivePedestalItems()
+    if (#pedestalItems > 0) then
+      directions = getDirectionsTo(pedestalItems[1].Position)
+      directionIndex = 1
+      goalTest = function () return #getPassivePedestalItems() == 0 end
+      return
+    end
+    
+    -- if there are no enemies then advance to the next room
+    if (not isBossRoom() and noEnemies()) then
+      directions = getDirectionsTo(getNextUnvisitedDoor().Position)
+      directionIndex = 1
+      goalTest = function () return false end
+      return
+    end
+    
+    -- if there are normal items in the room, get them next
+    
+    -- if there is a trapdoor to the next floor, go there next
+    if (getTrapDoor()) then
+      directions = getDirectionsTo(getTrapDoor().Position)
+      directionIndex = 1
+      goalTest = function () return false end
+      return
     end
   end
 end
+
 --------------------------
---- Using Level Search ---
+--- ON KILL HOOK ---
 --------------------------
 function onKill()
-  -- if we have finished killing all enemies, we want to move to the next room
-  -- so we set our directions to the next door for the room we want to visit
-  shouldRunLevelSearch = true
+  
 end
 
 -- this event is triggered every kill, which is why we are using it to check the last kill
@@ -450,8 +477,9 @@ mod:AddCallback(ModCallbacks.MC_POST_ENTITY_KILL, onKill)
 function onRoomStart()
   pointAndClickPos = nil
   directions = nil
+  goalTest = nil
   directionIndex = 1
-  shouldRunLevelSearch = true
+  visitedRooms2[getCurrentRoom()] = true
 end
 
 -- bind the MC_POST_NEW_ROOM callback
@@ -460,18 +488,15 @@ mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, onRoomStart)
 
 
 function onLevelStart()
-  setInitialLevelSearchParams()
   visitedRooms2 = {}
 end
-
 mod:AddCallback(ModCallbacks.MC_POST_NEW_LEVEL, onLevelStart)
-mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, onLevelStart) 
  
 -------------------------------
 -------- DAMAGE EVENTS --------
 -------------------------------
 function onPlayerDamage(_,entity,_,_,source)
-  Isaac.ConsoleOutput("onDamage Triggered:\n")
+  
 end
 
 -- bind the MC_ENTITY_TAKE_DMG callback for the Player to onPlayerDamage
@@ -536,25 +561,42 @@ function getRoomHeight()
   return Game():GetRoom():GetGridHeight()
 end
 
-function getAdjacentGridIndices(gridIndex)
-  local roomWidth = getRoomWidth()
-  local roomHeight = getRoomHeight()
+function nextValidGridIndices(gridIndex, goalIndex)
   local nextIndices = {}
-  nextIndices[0] = gridIndex - roomWidth -- UP
-  nextIndices[1] = gridIndex + roomWidth -- DOWN
-  nextIndices[2] = gridIndex - 1         -- LEFT
-  nextIndices[3] = gridIndex + 1         -- RIGHT  
+  local adjacentIndices = getAllAdjacentGridIndices(gridIndex)
+  for _, successorIndex in pairs(adjacentIndices) do
+    if not isGridIndexBlocked(successorIndex)
+    or (manhattanDist(gridIndex, goalIndex) == 1 and successorIndex == goalIndex) then
+      nextIndices = append(nextIndices, successorIndex)
+    end
+  end
   return nextIndices
 end
 
+function getAllAdjacentGridIndices(gridIndex)
+  local roomWidth = getRoomWidth()
+  local roomHeight = getRoomHeight()
+  local nextIndices = {}
+  nextIndices[1] = gridIndex - roomWidth     -- UP
+  nextIndices[2] = gridIndex + roomWidth     -- DOWN
+  nextIndices[3] = gridIndex - 1             -- LEFT
+  nextIndices[4] = gridIndex + 1             -- RIGHT
+  nextIndices[5] = gridIndex - roomWidth - 1 -- TOPLEFT
+  nextIndices[6] = gridIndex - roomWidth + 1 -- TOPRIGHT
+  nextIndices[7] = gridIndex + roomWidth - 1 -- BOTTOMLEFT
+  nextIndices[8] = gridIndex + roomWidth + 1 -- BOTTOMRIGHT
+  return nextIndices
+end
+
+-- get the indices of the four diagonals from the given grid index
 function getCornerGridIndices(gridIndex)
   local roomWidth = getRoomWidth()
   local roomHeight = getRoomHeight()
   local nextIndices = {}
-  nextIndices[0] = gridIndex - roomWidth - 2 -- TOPLEFT
-  nextIndices[1] = gridIndex - roomWidth + 2 -- TOPRIGHT
-  nextIndices[2] = gridIndex + 2*roomWidth - 1 -- BOTTOMLEFT
-  nextIndices[3] = gridIndex + 2*roomWidth + 1 -- BOTTOMRIGHT
+  nextIndices[1] = gridIndex - roomWidth - 1 -- TOPLEFT
+  nextIndices[2] = gridIndex - roomWidth + 1 -- TOPRIGHT
+  nextIndices[3] = gridIndex + roomWidth - 1 -- BOTTOMLEFT
+  nextIndices[4] = gridIndex + roomWidth + 1 -- BOTTOMRIGHT
   return nextIndices
 end
 
@@ -566,16 +608,28 @@ function isGridIndexBlocked(gridIndex)
   local gridEntity = Game():GetRoom():GetGridEntity(gridIndex)
   if (gridEntity ~= nil) then
     local t = gridEntity:GetType()
-    return not (t == nil or t == 0 or t == 1 or t == 1 or t == 16 or t == 17 or t == 20)
+    return not (t == nil 
+      or t == 0 
+      or t == GridEntityType.GRID_DECORATION
+      or t == GridEntityType.GRID_SPIKES_ONOFF
+      or t == GridEntityType.GRID_DOOR
+      or t == GridEntityType.GRID_TRAPDOOR
+      or t == GridEntityType.GRID_SPIDERWEB
+      or t == GridEntityType.GRID_PRESSURE_PLATE
+      or t == GridEntityType.GRID_POOP -- if it is destroyed
+      or t == GridEntityType.GRID_ROCK and gridEntity:GetSaveState().State == 2 -- if it is destroyed
+      or t == GridEntityType.GRID_TNT -- if it is destroyed
+      )
   else
+    -- check if there are any blocking entities in our way
+    local blockingEntities = filter(entityBlocksMovement, getAllRoomEntities())
+    for index, entity in pairs(blockingEntities) do
+      if getGridIndex(entity.Position) == gridIndex then
+        return true
+      end
+    end
     return false
   end
-end
-
-function potentialSimplificationConflict(index1, index2)
-  local moveableDistance = math.abs(math.floor(index1 / getRoomWidth()) - math.floor(index2 / getRoomWidth()))
-  local reachableIndex = index1 - moveableDistance + (moveableDistance * getRoomWidth())
-  return reachableIndex
 end
 
 -- returns the first trapdoor in the room
@@ -585,7 +639,7 @@ function getTrapDoor()
   while i < Game():GetRoom():GetGridSize() do
     local gridEntity = currRoom:GetGridEntity(i)
     if gridEntity ~= nil and gridEntity:GetType() == GridEntityType.GRID_TRAPDOOR then -- if we have found a TrapDoor
-      return currRoom:GetGridEntity(i)
+      return gridEntity
     end
     i = i + 1
   end
@@ -621,6 +675,23 @@ function getGridType(gridIndex)
   end
   return ""
 end
+
+-- get all buttons / pressure plates in room
+function getUnpressedPressurePlates()
+  local currRoom = Game():GetRoom()
+  local pressurePlates = {}
+  local i = 1
+  while i < Game():GetRoom():GetGridSize() do
+    local gridEntity = currRoom:GetGridEntity(i)
+    if gridEntity ~= nil and gridEntity:GetType() == GridEntityType.GRID_PRESSURE_PLATE
+    and gridEntity:GetSaveState().State == 0 then
+      pressurePlates = append(pressurePlates, getGridIndex(gridEntity.Position)) 
+    end
+    i = i + 1
+  end
+  return pressurePlates
+end
+  
 
 -- gets all entities in the room and puts them in a table list
 function getAllRoomEntities()
@@ -680,13 +751,472 @@ function getAllRoomEntitiesAtIndex(gridIndex)
   return entityGridList
 end
 
+-- returns a list of all grid indices of the pedestal items
+function getPedestalItems()
+  local entityGridList = {}
+  local allEntitiesList = getAllRoomEntities()
+  local listIndex = 1
+  for index, entity in pairs(allEntitiesList) do
+    if isPedestalItem(entity) then
+      entityGridList[listIndex] = entity
+      listIndex = listIndex + 1
+    end
+  end
+  return entityGridList
+end
+
+-- returns a list of all grid indices of the pedestal items
+function getPassivePedestalItems()
+  return filter(isPassiveItem, getPedestalItems())
+end
+
+-- returns the value that corresponds to what item it is
+function getPedestalItemId(pedestalItem)
+  return pedestalItem.SubType
+end
+
+-- returns true if the given entity is a pedestal item
+function isPedestalItem(entity)
+  return entity.Type == 5 and entity.Variant == 100 and entity.SubType ~= 0
+end
+
+function isPassiveItem(pedestalItem)
+  local itemId = getPedestalItemId(pedestalItem)
+  
+  return (itemId == 320 or
+    itemId == 11 or
+    itemId == 245 or
+    itemId == 191 or
+    itemId == 116 or
+    itemId == 18 or
+    itemId == 132 or
+    itemId == 74 or
+    itemId == 346 or
+    itemId == 230 or
+    itemId == 188 or
+    itemId == 214 or
+    itemId == 161 or
+    itemId == 222 or
+    itemId == 308 or
+    itemId == 300 or
+    itemId == 207 or
+    itemId == 231 or
+    itemId == 272 or
+    itemId == 274 or
+    itemId == 247 or
+    itemId == 279 or
+    itemId == 260 or
+    itemId == 226 or
+    itemId == 119 or
+    itemId == 254 or
+    itemId == 7 or
+    itemId == 157 or
+    itemId == 342 or
+    itemId == 246 or
+    itemId == 273 or
+    itemId == 140 or
+    itemId == 125 or
+    itemId == 250 or
+    itemId == 131 or
+    itemId == 19 or
+    itemId == 198 or
+    itemId == 25 or
+    itemId == 118 or
+    itemId == 337 or
+    itemId == 8 or
+    itemId == 129 or
+    itemId == 144 or
+    itemId == 209 or
+    itemId == 340 or
+    itemId == 319 or
+    itemId == 301 or
+    itemId == 307 or
+    itemId == 165 or
+    itemId == 162 or
+    itemId == 216 or
+    itemId == 208 or
+    itemId == 62 or
+    itemId == 154 or
+    itemId == 69 or
+    itemId == 241 or
+    itemId == 224 or
+    itemId == 4 or
+    itemId == 73 or
+    itemId == 48 or
+    itemId == 316 or
+    itemId == 170 or
+    itemId == 278 or
+    itemId == 259 or
+    itemId == 117 or
+    itemId == 81 or
+    itemId == 185 or
+    itemId == 336 or
+    itemId == 237 or
+    itemId == 113 or
+    itemId == 24 or
+    itemId == 23 or
+    itemId == 57 or
+    itemId == 52 or
+    itemId == 265 or
+    itemId == 236 or
+    itemId == 168 or
+    itemId == 310 or
+    itemId == 240 or
+    itemId == 204 or
+    itemId == 179 or
+    itemId == 257 or
+    itemId == 128 or
+    itemId == 318 or
+    itemId == 163 or
+    itemId == 225 or
+    itemId == 210 or
+    itemId == 215 or
+    itemId == 331 or
+    itemId == 70 or
+    itemId == 112 or
+    itemId == 206 or
+    itemId == 212 or
+    itemId == 187 or
+    itemId == 134 or
+    itemId == 156 or
+    itemId == 10 or
+    itemId == 167 or
+    itemId == 269 or
+    itemId == 248 or
+    itemId == 184 or
+    itemId == 313 or
+    itemId == 178 or
+    itemId == 256 or
+    itemId == 203 or
+    itemId == 242 or
+    itemId == 148 or
+    itemId == 234 or
+    itemId == 149 or
+    itemId == 201 or
+    itemId == 276 or
+    itemId == 197 or
+    itemId == 311 or
+    itemId == 266 or
+    itemId == 238 or
+    itemId == 239 or
+    itemId == 343 or
+    itemId == 332 or
+    itemId == 270 or
+    itemId == 302 or
+    itemId == 15 or
+    itemId == 304 or
+    itemId == 275 or
+    itemId == 277 or
+    itemId == 252 or
+    itemId == 96 or
+    itemId == 88 or
+    itemId == 99 or
+    itemId == 100 or
+    itemId == 87 or
+    itemId == 82 or
+    itemId == 213 or
+    itemId == 46 or
+    itemId == 22 or
+    itemId == 312 or
+    itemId == 194 or
+    itemId == 12 or
+    itemId == 253 or
+    itemId == 53 or
+    itemId == 344 or
+    itemId == 193 or
+    itemId == 202 or
+    itemId == 71 or
+    itemId == 258 or
+    itemId == 262 or
+    itemId == 173 or
+    itemId == 195 or
+    itemId == 110 or
+    itemId == 55 or
+    itemId == 200 or
+    itemId == 30 or
+    itemId == 199 or
+    itemId == 114 or
+    itemId == 31 or
+    itemId == 228 or
+    itemId == 139 or
+    itemId == 29 or
+    itemId == 217 or
+    itemId == 109 or
+    itemId == 322 or
+    itemId == 229 or
+    itemId == 106 or
+    itemId == 153 or
+    itemId == 5 or
+    itemId == 317 or
+    itemId == 271 or
+    itemId == 6 or
+    itemId == 121 or
+    itemId == 120 or
+    itemId == 219 or
+    itemId == 115 or
+    itemId == 141 or
+    itemId == 51 or
+    itemId == 75 or
+    itemId == 227 or
+    itemId == 309 or
+    itemId == 218 or
+    itemId == 169 or
+    itemId == 261 or
+    itemId == 281 or
+    itemId == 190 or
+    itemId == 223 or
+    itemId == 174 or
+    itemId == 16 or
+    itemId == 95 or
+    itemId == 267 or
+    itemId == 14 or
+    itemId == 72 or
+    itemId == 268 or
+    itemId == 26 or
+    itemId == 221 or
+    itemId == 94 or
+    itemId == 182 or
+    itemId == 172 or
+    itemId == 220 or
+    itemId == 339 or
+    itemId == 306 or
+    itemId == 321 or
+    itemId == 142 or
+    itemId == 305 or
+    itemId == 255 or
+    itemId == 205 or
+    itemId == 280 or
+    itemId == 67 or
+    itemId == 9 or
+    itemId == 17 or
+    itemId == 264 or
+    itemId == 189 or
+    itemId == 330 or
+    itemId == 143 or
+    itemId == 91 or
+    itemId == 211 or
+    itemId == 89 or
+    itemId == 159 or
+    itemId == 3 or
+    itemId == 196 or
+    itemId == 251 or
+    itemId == 64 or
+    itemId == 176 or
+    itemId == 50 or
+    itemId == 138 or
+    itemId == 232 or
+    itemId == 315 or
+    itemId == 92 or
+    itemId == 345 or
+    itemId == 299 or
+    itemId == 244 or
+    itemId == 68 or
+    itemId == 152 or
+    itemId == 63 or
+    itemId == 28 or
+    itemId == 180 or
+    itemId == 334 or
+    itemId == 103 or
+    itemId == 21 or
+    itemId == 101 or
+    itemId == 2 or
+    itemId == 60 or
+    itemId == 329 or
+    itemId == 79 or
+    itemId == 333 or
+    itemId == 151 or
+    itemId == 328 or
+    itemId == 80 or
+    itemId == 104 or
+    itemId == 155 or
+    itemId == 327 or
+    itemId == 98 or
+    itemId == 1 or
+    itemId == 90 or
+    itemId == 335 or
+    itemId == 13 or
+    itemId == 108 or
+    itemId == 249 or
+    itemId == 314 or
+    itemId == 233 or
+    itemId == 183 or
+    itemId == 341 or
+    itemId == 150 or
+    itemId == 20 or
+    itemId == 54 or
+    itemId == 243 or
+    itemId == 303 or
+    itemId == 122 or
+    itemId == 32 or
+    itemId == 27 or
+    itemId == 76 or
+    itemId == 359 or
+    itemId == 408 or
+    itemId == 391 or
+    itemId == 438 or
+    itemId == 420 or
+    itemId == 353 or
+    itemId == 385 or
+    itemId == 377 or
+    itemId == 412 or
+    itemId == 356 or
+    itemId == 387 or
+    itemId == 402 or
+    itemId == 372 or
+    itemId == 423 or
+    itemId == 369 or
+    itemId == 354 or
+    itemId == 415 or
+    itemId == 371 or
+    itemId == 373 or
+    itemId == 416 or
+    itemId == 381 or
+    itemId == 409 or
+    itemId == 368 or
+    itemId == 410 or
+    itemId == 401 or
+    itemId == 404 or
+    itemId == 361 or
+    itemId == 364 or
+    itemId == 418 or
+    itemId == 405 or
+    itemId == 432 or
+    itemId == 398 or
+    itemId == 429 or
+    itemId == 374 or
+    itemId == 375 or
+    itemId == 413 or
+    itemId == 360 or
+    itemId == 388 or
+    itemId == 440 or
+    itemId == 362 or
+    itemId == 384 or
+    itemId == 435 or
+    itemId == 365 or
+    itemId == 411 or
+    itemId == 394 or
+    itemId == 399 or
+    itemId == 436 or
+    itemId == 355 or
+    itemId == 414 or
+    itemId == 370 or
+    itemId == 431 or
+    itemId == 433 or
+    itemId == 425 or
+    itemId == 378 or
+    itemId == 426 or
+    itemId == 430 or
+    itemId == 380 or
+    itemId == 428 or
+    itemId == 379 or
+    itemId == 407 or
+    itemId == 376 or
+    itemId == 389 or
+    itemId == 424 or
+    itemId == 366 or
+    itemId == 390 or
+    itemId == 393 or
+    itemId == 400 or
+    itemId == 403 or
+    itemId == 367 or
+    itemId == 417 or
+    itemId == 363 or
+    itemId == 395 or
+    itemId == 358 or
+    itemId == 350 or
+    itemId == 397 or
+    itemId == 392 or
+    itemId == 526 or
+    itemId == 491 or
+    itemId == 493 or
+    itemId == 465 or
+    itemId == 528 or
+    itemId == 511 or
+    itemId == 443 or
+    itemId == 506 or
+    itemId == 458 or
+    itemId == 473 or
+    itemId == 535 or
+    itemId == 509 or
+    itemId == 513 or
+    itemId == 549 or
+    itemId == 514 or
+    itemId == 551 or
+    itemId == 518 or
+    itemId == 497 or
+    itemId == 453 or
+    itemId == 457 or
+    itemId == 466 or
+    itemId == 455 or
+    itemId == 546 or
+    itemId == 442 or
+    itemId == 446 or
+    itemId == 530 or
+    itemId == 469 or
+    itemId == 547 or
+    itemId == 445 or
+    itemId == 498 or
+    itemId == 499 or
+    itemId == 496 or
+    itemId == 462 or
+    itemId == 450 or
+    itemId == 517 or
+    itemId == 467 or
+    itemId == 540 or
+    itemId == 495 or
+    itemId == 460 or
+    itemId == 464 or
+    itemId == 501 or
+    itemId == 531 or
+    itemId == 543 or
+    itemId == 470 or
+    itemId == 494 or
+    itemId == 548 or
+    itemId == 520 or
+    itemId == 472 or
+    itemId == 532 or
+    itemId == 502 or
+    itemId == 444 or
+    itemId == 525 or
+    itemId == 519 or
+    itemId == 471 or
+    itemId == 537 or
+    itemId == 447 or
+    itemId == 503 or
+    itemId == 538 or
+    itemId == 541 or
+    itemId == 449 or
+    itemId == 456 or
+    itemId == 508 or
+    itemId == 539 or
+    itemId == 461 or
+    itemId == 544 or
+    itemId == 505 or
+    itemId == 454 or
+    itemId == 529 or
+    itemId == 500 or
+    itemId == 534 or
+    itemId == 468 or
+    itemId == 448 or
+    itemId == 459 or
+    itemId == 542 or
+    itemId == 463 or
+    itemId == 451 or
+    itemId == 524 or
+    itemId == 474 or
+    itemId == 533 or
+    itemId == 452 or
+    itemId == 492)
+  
+end
+
 -- returns whether an entity blocks your movement or not
 -- should avoid these ones in the roomSearch problem
 function entityBlocksMovement(entity)
   return (entity.Type == 5 and entity.Variant == 100) -- pedestal items
   or (entity.Type == 6) -- slot machines and bums
 end
-  
+
 -- returns a string representing the enum type of the given game entity
 function getEntityType(entity)
   
@@ -964,35 +1494,35 @@ end
 
 function printAdjacentGridIndices()
   local yOffset = 10
-  local n = getAdjacentGridIndices(getPlayerGridIndex())
+  local n = getAllAdjacentGridIndices(getPlayerGridIndex())
   local screenPos = getPlayerScreenPosition()
   currentIndex = tostring(getPlayerGridIndex())
-  upIndex = tostring(n[0])
-  downIndex = tostring(n[1])
-  leftIndex = tostring(n[2])
-  rightIndex = tostring(n[3])
-  upIsBlocked = isGridIndexBlocked(n[0])
-  downIsBlocked = isGridIndexBlocked(n[1])
-  leftIsBlocked = isGridIndexBlocked(n[2])
-  rightIsBlocked = isGridIndexBlocked(n[3])
+  upIndex = tostring(n[1])
+  downIndex = tostring(n[2])
+  leftIndex = tostring(n[3])
+  rightIndex = tostring(n[4])
+  upIsBlocked = isGridIndexBlocked(n[1])
+  downIsBlocked = isGridIndexBlocked(n[2])
+  leftIsBlocked = isGridIndexBlocked(n[3])
+  rightIsBlocked = isGridIndexBlocked(n[4])
   Isaac.RenderText(currentIndex, screenPos.X - string.len(currentIndex) * 3, screenPos.Y - yOffset, 1, 1, 1, 1)
   if (upIsBlocked) then
-    Isaac.RenderText(upIndex .. ": " .. tostring(getGridType(n[0])), screenPos.X - string.len(upIndex) * 3, screenPos.Y - yOffset - 30, 1, 0, 0, 1)
+    Isaac.RenderText(upIndex .. ": " .. tostring(getGridType(n[1])), screenPos.X - string.len(upIndex) * 3, screenPos.Y - yOffset - 30, 1, 0, 0, 1)
   else
     Isaac.RenderText(upIndex, screenPos.X - string.len(upIndex) * 3, screenPos.Y - yOffset - 30, 1, 1, 1, 1)
   end
   if (downIsBlocked) then
-    Isaac.RenderText(downIndex .. ": " .. tostring(getGridType(n[1])), screenPos.X - string.len(downIndex) * 3, screenPos.Y - yOffset + 30, 1, 0, 0, 1)
+    Isaac.RenderText(downIndex .. ": " .. tostring(getGridType(n[2])), screenPos.X - string.len(downIndex) * 3, screenPos.Y - yOffset + 30, 1, 0, 0, 1)
   else
     Isaac.RenderText(downIndex, screenPos.X - string.len(downIndex) * 3, screenPos.Y - yOffset + 30, 1, 1, 1, 1)
   end
   if (leftIsBlocked) then
-    Isaac.RenderText(tostring(getGridType(n[2])) .. ": " .. leftIndex, screenPos.X - string.len(getGridType(n[2]) .. ": " .. leftIndex) * 5 - 30, screenPos.Y - yOffset, 1, 0, 0, 1)
+    Isaac.RenderText(tostring(getGridType(n[3])) .. ": " .. leftIndex, screenPos.X - string.len(getGridType(n[2]) .. ": " .. leftIndex) * 5 - 30, screenPos.Y - yOffset, 1, 0, 0, 1)
   else
     Isaac.RenderText(leftIndex, screenPos.X - string.len(leftIndex) * 3 - 30, screenPos.Y - yOffset, 1, 1, 1, 1)
   end
   if (rightIsBlocked) then
-    Isaac.RenderText(rightIndex .. ": " .. tostring(getGridType(n[3])), screenPos.X - string.len(rightIndex) * 3 + 30, screenPos.Y - yOffset, 1, 0, 0, 1)
+    Isaac.RenderText(rightIndex .. ": " .. tostring(getGridType(n[4])), screenPos.X - string.len(rightIndex) * 3 + 30, screenPos.Y - yOffset, 1, 0, 0, 1)
   else
     Isaac.RenderText(rightIndex, screenPos.X - string.len(rightIndex) * 3 + 30, screenPos.Y - yOffset, 1, 1, 1, 1)
   end
@@ -1020,28 +1550,26 @@ function aStarRoomSearch(index1, index2)
     end
     if (not closedNodes[currentIndex] == true) then
       closedNodes[currentIndex] = true
-      if (not isGridIndexBlocked(currentIndex)) then
-        for indexInList, nextIndex in pairs(getAdjacentGridIndices(currentIndex)) do
-          costToNextIndex = g[currentIndex] + cost + manhattanDist(nextIndex, goalIndex)
-          if (not closedNodes[nextIndex] == true) then
-            if (not openNodes[nextIndex] == true) then
-               openNodes[nextIndex] = true
-               pq:put({nextIndex, append(pathToIndex, nextIndex)}, costToNextIndex)
-               g[nextIndex] = g[currentIndex] + cost
-            end
-          else
-            if (costToNextIndex < g[nextIndex]) then
-              -- pq:put({nextIndex, append(pathToIndex, nextIndex)}, costToNextIndex) -- update, not put
-              g[nextIndex] = g[currentIndex] + cost
-              openNodes[nextIndex] = false
-            end
+      for indexInList, nextIndex in pairs(nextValidGridIndices(currentIndex, goalIndex)) do
+        costToNextIndex = g[currentIndex] + cost + manhattanDist(nextIndex, goalIndex)
+        if (not closedNodes[nextIndex] == true) then
+          if (not openNodes[nextIndex] == true) then
+             openNodes[nextIndex] = true
+             pq:put({nextIndex, append(pathToIndex, nextIndex)}, costToNextIndex)
+             g[nextIndex] = g[currentIndex] + cost
+          end
+        else
+          if (costToNextIndex < g[nextIndex]) then
+            -- pq:put({nextIndex, append(pathToIndex, nextIndex)}, costToNextIndex) -- update, not put
+            g[nextIndex] = g[currentIndex] + cost
+            openNodes[nextIndex] = false
           end
         end
       end
     end
   end
-  -- if there is no path between them, then return nil
-  return nil
+  -- if there is no path between them, then return an empty set of directions
+  return {}
 end
 
 function aStarToPos(pos)
@@ -1056,31 +1584,9 @@ function convertListOfIndexToPos(indexList)
   return convertedList
 end
 
- -- reduce list of directions to only the directions that navigate around obstacles
-function simplifyDirections(directionList)
-  -- handle trivial case where the table has 0 or 1 entries
-  if #directionList < 2 then return directionList end
-  
-  local simplifiedList = {}
-  local currListIndex = 1
-  local prevIndex = getGridIndex(getPlayerPosition())
-  for indexInList, nextIndex in pairs(directionList) do
-    if (not isDirectPath(prevIndex, nextIndex)) then
-      -- set next valid move as the last one we could go to
-      local lastValidMove = directionList[indexInList - 1]
-      simplifiedList[currListIndex] = lastValidMove
-      currListIndex = currListIndex + 1
-      prevIndex = lastValidMove
-    end
-  end
-  -- add last grid index in case the last move was valid
-  simplifiedList[currListIndex] = directionList[#directionList]
-  return simplifiedList
-end
-
--- returns a list of Vector indicating the simplest set of directions to get to the given pos
+-- returns a list of Vector indicating the directions to get to the given pos
 function getDirectionsTo(pos)
-  return convertListOfIndexToPos(simplifyDirections(aStarToPos(pos)))
+  return convertListOfIndexToPos(aStarToPos(pos))
 end
 
 function printAllGridIndices(listOfDirections)
@@ -1096,6 +1602,14 @@ function printAllGameEntities(listOfEntities)
     local entityString = tostring(getEntityType(entity))
     Isaac.RenderText(entityString, screenPos.X - string.len(entityString) * 3, screenPos.Y, 1, 1, 1, 1)
   end
+end
+
+function printNaiveDFS()
+  local visitedRoomString = "Visited Rooms: "
+  for room, hasVisited in pairs(visitedRooms2) do
+    visitedRoomString = visitedRoomString .. tostring(room) .. ", "
+  end
+  Isaac.RenderText(visitedRoomString, 10, 80, 1, 1, 1, 1)
 end
 
 function printDFS()
@@ -1202,12 +1716,13 @@ function onStep()
       shootDirection = nil
       moveDirectionX = nil
       moveDirectionY = nil
+      
       if Input.IsMouseBtnPressed(0) then
         pointAndClickPos = Input.GetMousePosition(true)
         directions = getDirectionsTo(pointAndClickPos)
         directionIndex = 1
       end
-      if pointAndClickPos ~= nil and directions ~= nil and directionIndex <= #directions then
+      if pointAndClickPos ~= nil and directions and directionIndex <= #directions then
         local mousePosScreen = Isaac.WorldToScreen(pointAndClickPos)
         Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
         
@@ -1237,7 +1752,9 @@ function onStep()
           end
         end
         
-        if math.abs(xDistToNextPos) < pointAndClickThreshold and math.abs(yDistToNextPos) < pointAndClickThreshold then
+        -- move on to next position if we reach this one, unless we are forcing to move to the goal
+        if math.abs(xDistToNextPos) < pointAndClickThreshold and
+        math.abs(yDistToNextPos) < pointAndClickThreshold then
           directionIndex = directionIndex + 1
         end
       end
@@ -1250,7 +1767,14 @@ function onStep()
       shootDirection = nil
       moveDirectionX = nil
       moveDirectionY = nil
-      if directions ~= nil and directions[directionIndex] then
+      
+      -- our agent should never give up on the goal if we are forcing it there
+      local movementThreshold = pointAndClickThreshold
+      if directions and directionIndex == #directions then
+        movementThreshold = -1
+      end
+      
+      if directions and directions[directionIndex] then
         -- print all of the grid indexes at their positions
         printAllGridIndices(directions)
         
@@ -1259,7 +1783,7 @@ function onStep()
         local xDistToNextPos = directions[directionIndex].X - playerPos.X
         local yDistToNextPos = directions[directionIndex].Y - playerPos.Y
         
-        if math.abs(xDistToNextPos) > pointAndClickThreshold then
+        if math.abs(xDistToNextPos) > movementThreshold then
           if xDistToNextPos > 0 then
             moveDirectionX = ButtonAction.ACTION_RIGHT
             shootDirection = ButtonAction.ACTION_SHOOTRIGHT
@@ -1270,7 +1794,7 @@ function onStep()
           end
         end
         
-        if math.abs(yDistToNextPos) > pointAndClickThreshold then
+        if math.abs(yDistToNextPos) > movementThreshold then
           if yDistToNextPos < 0 then
             moveDirectionY = ButtonAction.ACTION_UP
             shootDirection = ButtonAction.ACTION_SHOOTUP
@@ -1281,15 +1805,23 @@ function onStep()
           end
         end
         
-        if math.abs(xDistToNextPos) < pointAndClickThreshold and math.abs(yDistToNextPos) < pointAndClickThreshold then
-          directionIndex = directionIndex + 1
+        if directionIndex < #directions then
+          if math.abs(xDistToNextPos) < movementThreshold and math.abs(yDistToNextPos) < movementThreshold then
+            directionIndex = directionIndex + 1
+          end
+        else if goalTest() then
+            directionIndex = directionIndex + 1
+            directions = nil
+            goalTest = nil
+          end
         end
-      end
     end
   end
   printAdjacentGridIndices()
+  printNaiveDFS()
   -- printDFS()
   -- printAllGameEntities(getAllRoomEntities())
+end
 end
 
 -- bind the MC_POST_RENDER callback to onRender
@@ -1297,9 +1829,7 @@ end
 mod:AddCallback(ModCallbacks.MC_POST_RENDER, onStep)
 
 function onUpdate()
-  if shouldRunLevelSearch then
-    runLevelSearch()
-  end
+  updateWhereToGoNext()
 end
 mod:AddCallback(ModCallbacks.MC_POST_UPDATE, onUpdate)
 
