@@ -24,7 +24,7 @@ RoomTypeEnumReverse = makeReverseTable(RoomType)
 -- 18 --> GRID_STAIRS
 -- 19 --> GRID_GRAVITY
 -- 20 --> GRID_PRESSURE_PLATE
--- 21 --> GRID_STATUE
+-- 21 --> `
 -- 22 --> GRID_ROCK_SS
 function getGridType(gridIndex)
   local gridEntity = Game():GetRoom():GetGridEntity(gridIndex)

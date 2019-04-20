@@ -41,12 +41,12 @@ function onStep()
       SmartBoiAgent()
     end
   -- printAdjacentGridIndices()
-  -- printAllGameEntities(getAllRoomEntities())
-  -- if directions then printAllGridIndices(directions) end
+  printAllGameEntities(getAllRoomEntities())
+  if directions then printAllGridIndices(directions) end
 end
 -- printAllGameEntities(getAllRoomEntities())
 --printDFS()
---printGoodDoors()
+printGoodDoors()
 end
 
 -- bind the MC_POST_RENDER callback to onRender

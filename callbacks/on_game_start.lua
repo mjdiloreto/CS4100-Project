@@ -3,7 +3,7 @@
 --------------------------------
 -- Define debug variables
 local makeIsaacInvincible = true
-local killAllEnemiesOnRoomStart = true
+local killAllEnemiesOnRoomStart = false
 
 function onGameStart()
   CPrint("### New Game Started ###")

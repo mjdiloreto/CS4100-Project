@@ -6,7 +6,7 @@ goalTest = nil
 
 function navigate()
   -- if we haven't tried to find the path yet
-  if directions == nil then
+  if directions == nil or #directions == 0 then
 
     -- obviously prioritize beating the game
     local trophy = getWinEntity()
@@ -35,9 +35,11 @@ function navigate()
     local pedestalItems = getPassivePedestalItems()
     if (#pedestalItems > 0) then
       directions = getDirectionsTo(pedestalItems[1].Position)
-      directionIndex = 1
-      goalTest = function () return #getPassivePedestalItems() == 0 end
-      return
+      if #directions ~= 0 then
+        directionIndex = 1
+        goalTest = function () return #getPassivePedestalItems() == 0 end
+        return
+      end
     end
 
     -- if there are normal items in the room, get them next
@@ -54,9 +56,11 @@ function navigate()
       end
       if trapDoor:GetSaveState().State == 1 then
         directions = getDirectionsTo(getTrapDoor().Position)
-        directionIndex = 1
-        goalTest = function () return false end
-        return
+        if #directions ~= 0 then
+          directionIndex = 1
+          goalTest = function () return false end
+          return
+        end
       end
     end
     
@@ -64,11 +68,13 @@ function navigate()
     -- provided that we are in a boss room... unless there is another boss room connected
     if not isBossRoom() or (isBossRoom() and anyUnvisitedBossRooms()) then
       directions = getDirectionsTo(levelSearch().Position)
-      directionIndex = 1
-      goalTest = function () return false end
-      return
+      if #directions ~= 0 then
+        directionIndex = 1
+        goalTest = function () return false end
+        return
+      end
+    end
   end
-end
 end
 
 -- callback function, happens every three frames or so
