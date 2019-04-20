@@ -4,7 +4,7 @@ function onRoomStart()
   directions = nil
   goalTest = nil
   directionIndex = 1
-  visitedRooms[getCurrentRoom()] = true
+  updateVisitedRooms()
 end
 
 -- bind the MC_POST_NEW_ROOM callback

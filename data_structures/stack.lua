@@ -46,7 +46,7 @@ end
 
 -- look at the top element without removing it
 function Stack:peek()
-  return self.stack[1]
+  return self.stack[#self.stack]
 end
 
 --------------------------------

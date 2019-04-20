@@ -58,12 +58,25 @@ end
 ------------ ROOMS AND DOORS ------------
 -----------------------------------------
 
+-- gets the current room index
 function getCurrentRoom()
-  return Game():GetLevel():GetCurrentRoomIndex()
+  return Game():GetLevel():GetCurrentRoomDesc().GridIndex
 end
 
+-- returns true if the current room adjacent rooms are the boss room
 function isBossRoom()
   return Game():GetRoom():GetType() == RoomType.ROOM_BOSS
+end
+
+-- returns true if any adjacent rooms are the boss room
+function anyUnvisitedBossRooms()
+  local doors = getAllDoors()
+  for _, door in pairs(doors) do
+    if door.TargetRoomType == RoomType.ROOM_BOSS and not visitedRooms[getTargetRoomIndex(door)] then
+      return true
+    end
+  end
+  return false
 end
 
 function getAllDoors()
@@ -112,8 +125,9 @@ function getGoodDoors()
   return filter(isGoodDoor, getAllDoors())
 end
 
+-- returns a STABLE room index that is unique to that room (unlike `door.TargetRoomIndex`)
 function getTargetRoomIndex(door)
-  return door.TargetRoomIndex
+  return Game():GetLevel():GetRoomByIdx(door.TargetRoomIndex).GridIndex
 end
 
 -- returns whether there is an unobstructed line of movement between
@@ -201,9 +215,9 @@ function getTrapDoor()
 end
 
 -- returns the first trophy in the room
-function getTrophy()
+function getWinEntity()
   for _, entity in pairs(getAllRoomEntities()) do
-    if entity.Type == 5 and entity.Variant == 340 then
+    if entity.Type == 5 and (entity.Variant == 340 or entity.Variant == 370) then
       return entity
     end
   end
@@ -292,18 +306,6 @@ function getDoorTo(roomIndex)
   return nil
 end
 
-function getNextUnvisitedDoor()
-  local goodDoors = getGoodDoors()
-  for _, door in pairs(goodDoors) do
-    local roomIndex = getTargetRoomIndex(door)
-    if not visitedRooms[roomIndex] then
-      return door
-    end
-  end
-  -- else return a random door
-  return goodDoors[math.random(#goodDoors)]
-end
-
 function getClosestFromIndices(gridIndexList)
   local closestDist = manhattanDist(getGridIndex(getPlayerPosition()), gridIndexList[1])
   local closestIndex = gridIndexList[1]
@@ -315,4 +317,9 @@ function getClosestFromIndices(gridIndexList)
     end
   end
   return closestIndex
+end
+
+-- returns a list of rooms given a list of doors
+function convertDoorsToRoomIndices(doors)
+  return map(getTargetRoomIndex, doors)
 end

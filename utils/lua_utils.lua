@@ -8,10 +8,22 @@
 ------------ GENERAL -------------
 ----------------------------------
 
--- Utility method for testing
-function equal(expected, result)
-  -- TODO make this smart?
-  return expected == result
+-- Compares equality of arbitrarily nested tables
+function equal(expected, actual)
+  if type(expected) ~= type(actual) then
+    return false
+  end
+  
+  if type(expected) == "table" then
+    for index, val in pairs(expected) do
+      if not equal(val, actual[index]) then
+        return false
+      end
+    end
+    return true
+  end
+  
+  return expected == actual
 end
 
 
@@ -50,6 +62,15 @@ function makeReverseTable(someTable)
     newTable[val] = index
   end
   return newTable
+end
+
+-- swaps key and value pairs
+function string_append(someTable, delimiter)
+  local str = ""
+  for index, val in pairs(someTable) do
+    str = str .. tostring(val) .. delimiter
+  end
+  return str
 end
 
 -- reverses the order of an array

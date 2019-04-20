@@ -59,25 +59,58 @@ function printAllGridIndices(listOfDirections)
 end
 
 function printAllGameEntities(listOfEntities)
-  for indexInList, entity in pairs(listOfEntities) do
-    local screenPos = getScreenPosition(entity.Position)
-    local entityString = tostring(getEntityType(entity))
-    printCentered(entityString, screenPos.X, screenPos.Y, 1, 1, 1, 1)
+  if listOfEntities then
+    for indexInList, entity in pairs(listOfEntities) do
+      local screenPos = getScreenPosition(entity.Position)
+      local entityString = tostring(getEntityType(entity))
+      printCentered(entityString, screenPos.X, screenPos.Y, 1, 1, 1, 1)
+    end
   end
 end
 
-function printNaiveDFS()
-  local visitedRoomString = "Visited Rooms: "
-  for room, hasVisited in pairs(visitedRooms) do
-    visitedRoomString = visitedRoomString .. tostring(room) .. ", "
+function printKeys(prefix, list, x, y)
+  local listString = ""
+  if prefix then listString = prefix .. ": " end
+  for key, _ in pairs(list) do
+    listString = listString .. tostring(key) .. ", "
   end
-  Isaac.RenderText(visitedRoomString, 10, 80, 1, 1, 1, 1)
+  Isaac.RenderText(listString, x, y, 1, 1, 1, 1)
+end
+
+function printValues(prefix, list, x, y)
+  local listString = ""
+  if prefix then listString = prefix .. ": " end
+  for _, val in pairs(list) do
+    listString = listString .. tostring(val) .. ", "
+  end
+  Isaac.RenderText(listString, x, y, 1, 1, 1, 1)
+end
+
+function printKeysAndValues(prefix, list, x, y)
+  local listString = ""
+  if prefix then listString = prefix .. ": " end
+  for key, val in pairs(list) do
+    listString = listString .. tostring(key) .. "=".. val .. ", "
+  end
+  Isaac.RenderText(listString, x, y, 1, 1, 1, 1)
+end
+
+function printVisitedRooms()
+  printKeysAndValues("Visited Rooms", visitedRooms, 10, 80)
 end
 
 function printDFS()
-  local currentRoomIndex = "currentRoom = " .. tostring(getCurrentRoom())
-  Isaac.RenderText("LEVEL SEARCH", 100, 70, 1, 1, 1, 1)
-  Isaac.RenderText(currentRoomIndex, 100, 100, 1, 1, 1, 1)
-  local topOfRoomStack = "top of RoomStack = " .. tostring(roomStack:peek()[1])
-  Isaac.RenderText(topOfRoomStack, 100, 130, 1, 1, 1, 1)
+  printVisitedRooms()
+  local currentRoomString = "CurrRoom: " .. tostring(getCurrentRoom())
+  Isaac.RenderText(currentRoomString, 10, 100, 1, 1, 1, 1)
+end
+
+function printGoodDoors()
+  local unvisitedDoors = map(getTargetRoomIndex, getUnvisitedDoors())
+  for indexInList, nextDoor in pairs(getGoodDoors()) do
+    if contains(unvisitedDoors, getTargetRoomIndex(nextDoor)) then
+      local screenPos = getScreenPosition(nextDoor.Position)
+      printCentered("DOOR:" .. tostring(getTargetRoomIndex(nextDoor)), screenPos.X, screenPos.Y + 5, 1, 1, 1, 1)
+    end
+  end
 end

@@ -9,7 +9,7 @@ function navigate()
   if directions == nil then
 
     -- obviously prioritize beating the game
-    local trophy = getTrophy()
+    local trophy = getWinEntity()
     if (trophy) then
       directions = getDirectionsTo(trophy.Position)
       directionIndex = 1
@@ -40,14 +40,6 @@ function navigate()
       return
     end
 
-    -- if there are no enemies then advance to the next room
-    if (not isBossRoom() and noEnemies()) then
-      directions = getDirectionsTo(getNextUnvisitedDoor().Position)
-      directionIndex = 1
-      goalTest = function () return false end
-      return
-    end
-
     -- if there are normal items in the room, get them next
 
     -- if there is a trapdoor to the next floor, go there next
@@ -55,7 +47,7 @@ function navigate()
     if (trapDoor) then
       -- if trap door is closed, wait until it is open in another position
       if trapDoor:GetSaveState().State == 0 then
-        directions = getDirectionsTo(getGridPos(getGridIndex(getTrapDoor().Position) - 1 - getRoomWidth()))
+        directions = getDirectionsTo(getGridPos(getGridIndex(getTrapDoor().Position) - 1 - getRoomWidth())) -- move index to upper left
         directionIndex = 1
         goalTest = function () return getTrapDoor():GetSaveState().State == 1 end
         return
@@ -67,7 +59,16 @@ function navigate()
         return
       end
     end
+    
+    -- if we are out of things to do then advance to the next room
+    -- provided that we are in a boss room... unless there is another boss room connected
+    if not isBossRoom() or (isBossRoom() and anyUnvisitedBossRooms()) then
+      directions = getDirectionsTo(levelSearch().Position)
+      directionIndex = 1
+      goalTest = function () return false end
+      return
   end
+end
 end
 
 -- callback function, happens every three frames or so

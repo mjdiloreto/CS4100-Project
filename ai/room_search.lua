@@ -81,18 +81,18 @@ function nextValidGridIndicesHelper(adjacentIndices, gridIndex, goalIndex, isDia
     and (not isDiagonal or isDirectPath(gridIndex, successorIndex))
     or (manhattanDist(gridIndex, goalIndex) == 1 and successorIndex == goalIndex) then
         local succEntity = Game():GetRoom():GetGridEntity(successorIndex)
-        local succCost = 0
+        local succCost = 1
 
         -- modifiy successor cost
         if succEntity then
           if succEntity:GetType() == GridEntityType.GRID_SPIDERWEB then
-            succCost = 3
+            succCost = 2
           end
           if succEntity:GetType() == GridEntityType.GRID_POOP then
             succCost = 5
           end
         end
-        if isDiagonal then succCost = succCost * 1.4 end
+        if isDiagonal then succCost = succCost * 1.5 end
         nextIndices = append(nextIndices, {successorIndex, succCost})
       end
     end
@@ -112,10 +112,9 @@ function isGridIndexBlocked(gridIndex)
       or t == 0
       or t == GridEntityType.GRID_DECORATION
       or t == GridEntityType.GRID_SPIKES_ONOFF
-      or t == GridEntityType.GRID_TRAPDOOR
       or t == GridEntityType.GRID_SPIDERWEB
       or t == GridEntityType.GRID_PRESSURE_PLATE
-      or t == GridEntityType.GRID_POOP -- if it is destroyed
+      or t == GridEntityType.GRID_POOP -- since we are shooting in the direction we move, we will destroy it
       or t == GridEntityType.GRID_ROCK and gridEntity:GetSaveState().State == 2 -- if it is destroyed
       or t == GridEntityType.GRID_TNT and gridEntity:GetSaveState().State == 4 -- if it is destroyed
       )

@@ -7,7 +7,7 @@
 timer = 0
 moveLeftAndRightEvery = 100
 
-AgentType = { MoveLeftAndRight, Snake, PointAndClick, SmartBoi }
+AgentType = { MoveLeftAndRight = 1, Snake = 2, PointAndClick = 3, SmartBoi = 4 }
 agentType = AgentType.SmartBoi
 agentTypeString = makeReverseTable(AgentType)[agentType]
 
@@ -23,12 +23,11 @@ function SmartBoiAgent()
   -- our agent should never give up on the goal if we are forcing it there
   local movementThreshold = pointAndClickThreshold
   if directions and directionIndex == #directions then
-    movementThreshold = -1
+    movementThreshold = 5
   end
 
   if directions and directions[directionIndex] then
     -- print all of the grid indexes at their positions
-    printAllGridIndices(directions)
 
     local playerPos =  getPlayerPosition()
 
@@ -55,6 +54,8 @@ function SmartBoiAgent()
         moveDirectionY = ButtonAction.ACTION_DOWN
         shootDirection = ButtonAction.ACTION_SHOOTDOWN
       end
+    else
+      -- thing
     end
 
     if directionIndex < #directions then
@@ -118,8 +119,6 @@ function PointAndClickAgent()
     Isaac.RenderText("X", mousePosScreen.X - 3, mousePosScreen.Y - 6, 1, 0, 0, 1)
 
     -- print all of the grid indexes at their positions
-    printAllGridIndices(directions)
-
     local playerPos =  getPlayerPosition()
 
     local xDistToNextPos = directions[directionIndex].X - playerPos.X

@@ -40,11 +40,13 @@ function onStep()
     if agentType == AgentType.SmartBoi then
       SmartBoiAgent()
     end
-  printAdjacentGridIndices()
-  printNaiveDFS()
-  -- printDFS()
+  -- printAdjacentGridIndices()
   -- printAllGameEntities(getAllRoomEntities())
-  end
+  -- if directions then printAllGridIndices(directions) end
+end
+-- printAllGameEntities(getAllRoomEntities())
+--printDFS()
+--printGoodDoors()
 end
 
 -- bind the MC_POST_RENDER callback to onRender
