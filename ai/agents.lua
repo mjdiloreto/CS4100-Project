@@ -16,9 +16,6 @@ pointAndClickThreshold = 20
 
 -- this agent follows directions, this is the main AI driver
 function SmartBoiAgent()
-  shootDirection = nil
-  moveDirectionX = nil
-  moveDirectionY = nil
 
   -- our agent should never give up on the goal if we are forcing it there
   local movementThreshold = pointAndClickThreshold
@@ -27,7 +24,10 @@ function SmartBoiAgent()
   end
 
   if directions and directions[directionIndex] then
-    -- print all of the grid indexes at their positions
+
+    shootDirection = nil
+    moveDirectionX = nil
+    moveDirectionY = nil
 
     local playerPos =  getPlayerPosition()
 

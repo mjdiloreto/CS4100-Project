@@ -1,8 +1,8 @@
 ------------------------------------
 -------- PROGRAMMATIC INPUT --------
 ------------------------------------
-shootDirection = ButtonAction.ACTION_SHOOTUP
-moveDirectionX = ButtonAction.ACTION_LEFT
+shootDirection = nil
+moveDirectionX = nil
 moveDirectionY = nil
 
 function onInputRequest(_, entity, inputHook, buttonAction)

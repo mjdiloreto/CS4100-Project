@@ -18,6 +18,11 @@ function navigate()
 
     -- if there are enemies in the room fight them
     if (not noEnemies()) then
+      directions = nil
+      -- here you want to set your movement and shoot directions
+      shootDirection = nil
+      moveDirectionX = nil
+      moveDirectionY = nil
       return
     end
 
@@ -63,7 +68,7 @@ function navigate()
         end
       end
     end
-    
+
     -- if we are out of things to do then advance to the next room
     -- provided that we are in a boss room... unless there is another boss room connected
     if not isBossRoom() or (isBossRoom() and anyUnvisitedBossRooms()) then

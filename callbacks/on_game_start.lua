@@ -3,7 +3,7 @@
 --------------------------------
 -- Define debug variables
 local makeIsaacInvincible = true
-local killAllEnemiesOnRoomStart = false
+local killAllEnemiesOnRoomStart = true
 
 function onGameStart()
   CPrint("### New Game Started ###")
@@ -12,7 +12,7 @@ function onGameStart()
   if makeIsaacInvincible then
     Isaac.ExecuteCommand("debug 3")
   end
-  
+
   -- Make all enemies in room die when entering the room
   if killAllEnemiesOnRoomStart then
     Isaac.ExecuteCommand("debug 10")

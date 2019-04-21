@@ -1,6 +1,6 @@
-require('mobdebug').start();              -- enable debugging checkpoints
-StartDebug();                             -- enable debugging
-mod = RegisterMod("AI Final", 1);   -- register mod in game
+require('mobdebug').start();         -- enable debugging checkpoints
+StartDebug();                        -- enable debugging
+mod = RegisterMod("AI Final", 1);    -- register mod in game
 
 ---------------------------
 -------- TODO LIST --------
@@ -9,10 +9,10 @@ mod = RegisterMod("AI Final", 1);   -- register mod in game
 BFS Level Search :
 -- store room properties like the adjacent rooms, along with whether it is a boss room, treasure room, and if it contains
 --     hearts or any other collectibles in it and then allow the goal to be finding an unvisited room or the boss room
+-- if there are multiple unvisited doors then just go to the closest one
 
 TEST CASES (SEEDS)
 -- N8ERWR90 (has unreachable pedestal item and mandatory button on first floor)
--- 3RZJLYN7 (not sure), first room up
 
 NAVIGATE:
 -- if you can't get a pedestal item, then just move on
@@ -20,6 +20,7 @@ NAVIGATE:
 -- pick up items on floor
 -- don't pick up item if it is a heart or battery you can't consume
 -- go into angel rooms
+-- don't consider the spike blocks as enemies
 
 
 aStar Room Search :
@@ -27,7 +28,7 @@ aStar Room Search :
 -- also we need to let isaac know that he can break POOP and FIRE tiles if he wants to get through them
 -- also we need to special case the on and off spikes, since isaac needs to go over them in some cases when they are off
 -- TODO nextValidGridIndices needs to be updated to deal with diagonal movement blocking cases
--- TODO increase cost of moving diagonally in aStarRoomSearch (maybe just bring back smoothing?) 
+-- TODO increase cost of moving diagonally in aStarRoomSearch (maybe just bring back smoothing?)
 -- TODO he kinda just walks into the pedestal forever if his starting position was on the pedestal
 -- if you're flying, change the search to rage through objects
 
