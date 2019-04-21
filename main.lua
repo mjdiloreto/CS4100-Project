@@ -200,6 +200,8 @@ modEnabled = true
 import("levelSearch")
 import("priority_queue")
 import("IsaacQLearning")
+mod:AddCallback(ModCallbacks.MC_POST_UPDATE, QIsaac.onUpdate)
+mod:AddCallback(ModCallbacks.MC_INPUT_ACTION, QIsaac.onInputRequest)
 
 --------------------------------
 -------- DEBUG COMMANDS --------
