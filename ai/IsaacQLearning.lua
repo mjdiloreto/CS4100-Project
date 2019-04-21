@@ -1,7 +1,5 @@
-import("qlearning")
-
 QIsaac = {}
-shootDirection = ButtonAction.ACTION_SHOOTUP
+--shootDirection = ButtonAction.ACTION_SHOOTUP
 
 --Duplicated functions
 function getRoomWidth()
@@ -65,7 +63,6 @@ end
 
 function startQTraining()
   CPrint("Q training started")
-  Isaac.ExecuteCommand("debug 10") -- stop killing
 
   lockDoors(getAllDoorsInRoom(Game():GetRoom()))
   initRoomWithFlies()
@@ -163,3 +160,4 @@ end
 
 QIsaac.onUpdate = onUpdate
 QIsaac.onInputRequest = onInputRequest
+QIsaac.startQTraining = startQTraining

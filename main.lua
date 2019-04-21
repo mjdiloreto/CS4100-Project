@@ -80,6 +80,8 @@ import("ai.agents")
 import("ai.room_search")
 import("ai.level_search")
 import("ai.navigator")
+import("ai.qlearning")
+import("ai.IsaacQLearning")
 
 --------------------------------
 -------- PROJECT HEADER --------
@@ -90,3 +92,4 @@ CPrint("----------------------------------")
 CPrint("")
 
 modEnabled = true
+qLearning = true

@@ -3,7 +3,7 @@
 --------------------------------
 -- Define debug variables
 local makeIsaacInvincible = true
-local killAllEnemiesOnRoomStart = true
+local killAllEnemiesOnRoomStart = false
 
 function onGameStart()
   CPrint("### New Game Started ###")
@@ -14,10 +14,10 @@ function onGameStart()
   end
 
   -- Make all enemies in room die when entering the room
-  if killAllEnemiesOnRoomStart then
+  if killAllEnemiesOnRoomStart and not qLearning then
     Isaac.ExecuteCommand("debug 10")
   end
-
+  
   -- print variables to console
   CPrint(string.format("makeIsaacInvincible = %s", tostring(makeIsaacInvincible)))
   CPrint(string.format("killAllEnemiesOnRoomStart = %s", tostring(killAllEnemiesOnRoomStart)))

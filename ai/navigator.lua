@@ -17,13 +17,13 @@ function navigate()
     end
 
     -- if there are enemies in the room fight them
-    if (not noEnemies()) then
+    --if (not noEnemies()) then -- this is the test for exploitation
+    if qLearning then
       directions = nil
       -- here you want to set your movement and shoot directions
-      shootDirection = nil
-      moveDirectionX = nil
-      moveDirectionY = nil
-      return
+      
+      QIsaac.onUpdate()
+      return 
     end
 
     local pressurePlates = getUnpressedPressurePlates()

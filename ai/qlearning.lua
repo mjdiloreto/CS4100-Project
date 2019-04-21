@@ -1,4 +1,4 @@
-function raiseNotDefined()
+--[[function raiseNotDefined()
   error("not defined")
 end
 
@@ -283,4 +283,4 @@ function ApproximateQAgent:update(state, action, nextState, reward)
 end
 
 
-Vector:ForceError()
+Vector:ForceError()--]]
