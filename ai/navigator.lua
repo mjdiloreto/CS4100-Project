@@ -5,6 +5,14 @@ directions = nil
 goalTest = nil
 
 function navigate()
+  
+  -- if there are enemies in the room fight them
+  --if (not noEnemies()) then -- this is the test for exploitation
+  if qLearning then      
+    QIsaac.onUpdate()
+    return 
+  end
+    
   -- if we haven't tried to find the path yet
   if directions == nil or #directions == 0 then
 
@@ -14,16 +22,6 @@ function navigate()
       directions = getDirectionsTo(trophy.Position)
       directionIndex = 1
       goalTest = function () return false end
-    end
-
-    -- if there are enemies in the room fight them
-    --if (not noEnemies()) then -- this is the test for exploitation
-    if qLearning then
-      directions = nil
-      -- here you want to set your movement and shoot directions
-      
-      QIsaac.onUpdate()
-      return 
     end
 
     local pressurePlates = getUnpressedPressurePlates()

@@ -6,6 +6,10 @@ function getRoomWidth()
   return Game():GetRoom():GetGridWidth()
 end
 
+function getRoomHeight()
+  return Game():GetRoom():GetGridHeight()
+end
+
 function modulo(a, b)
   return (a - math.floor(a/b)*b)
 end
@@ -68,24 +72,31 @@ function startQTraining()
   initRoomWithFlies()
 end
 
-function getDist(entity1, entity2)
-  X1 = entity1.Position.X
-  X2 = entity2.Position.X
-  Y1 = entity1.Position.Y
-  Y2 = entity2.Position.Y
+function getDistance(X1,X2,Y1,Y2)
   return math.sqrt((X1 - X2) * (X1 - X2) + (Y1 - Y2) * (Y1 - Y2))
 end
-  
 
-function getGridIndex(entity)
+function getDist(entity1, entity2)
+  local X1 = entity1.Position.X
+  local X2 = entity2.Position.X
+  local Y1 = entity1.Position.Y
+  local Y2 = entity2.Position.Y
+  return getDistance(X1,X2,Y1,Y2)
+end
+
+function getEntityGridIndex(entity)
   return Game():GetRoom():GetClampedGridIndex(entity.Position)
 end
 
+function getPlayerIndex()
+  return getEntityGridIndex(Game():GetPlayer(0))
+end
+
 function sameCol(e1, e2)
-  return modulo(math.abs(getGridIndex(e1) - getGridIndex(e2)), getRoomWidth()) == 0
+  return modulo(math.abs(getEntityGridIndex(e1) - getEntityGridIndex(e2)), getRoomWidth()) == 0
 end
 function sameRow(e1, e2)
-  return math.abs(getGridIndex(e1) - getGridIndex(e2)) < getRoomWidth()
+  return math.abs(getEntityGridIndex(e1) - getEntityGridIndex(e2)) < getRoomWidth()
 end
   
 function setShootDirection(player, entity)
@@ -133,11 +144,26 @@ function onInputRequest(_, entity, inputHook, buttonAction)
   end
 end
   
+-- if line passes through P1 and P2, what is the dist to the point xy?
+function distance(P1, P2, xy)
+  x1 = P1.X
+  y1 = P1.Y
+  x2 = P2.X
+  y2 = P2.Y
+  x0 = xy.X
+  y0 = xy.Y
+  
+  num = (y2-y1)*x0 - (x2-x1)*y0 + x2*y1 - y2*x1
+  dem = (y2-y1)*(y2-y1) + (x2-x1)*(x2-x1)
+  
+  return math.abs(num) / math.sqrt(dem)
+end
+
 function getClosestEnemy()
-  enemies = getEnemies()
-  closestEnemy = nil
-  closestEnemyDist = 99999999
-  IsaacEntity = Game():GetPlayer(0)
+  local enemies = getEnemies()
+  local closestEnemy = nil
+  local closestEnemyDist = 99999999
+  local IsaacEntity = Game():GetPlayer(0)
   
   --Todo find enemies hittable
   --Todo given hittable enemy, what dir to fire, and then fire
@@ -152,10 +178,92 @@ function getClosestEnemy()
   return closestEnemy
 end
 
+function moveTo(index)
+  directions = getDirectionsTo(getGridPos(index))
+  directionIndex = 1
+  goalTest = function () return false end
+end
+
+function legalActions()
+  return {ButtonAction.ACTION_UP, ButtonAction.ACTION_DOWN, ButtonAction.ACTION_LEFT, ButtonAction.ACTION_RIGHT}
+end
+
+function getNextState(current, action)
+  if action == ButtonAction.ACTION_UP then
+    return current - getRoomWidth()
+  elseif action == ButtonAction.ACTION_DOWN then
+    return current + getRoomWidth()
+  elseif action == ButtonAction.ACTION_LEFT then
+    return current - 1
+  elseif action == ButtonAction.ACTION_DOWN then
+    return current + 1
+  else  
+    return current
+  end
+end
+
+function getShootVectors(entity)
+  local entityPosition = entity.Position
+  local Xoffset = modulo(entityPosition.X, getRoomWidth())
+  local leftmostX = entityPosition.X - Xoffset
+  local rightmostX = leftmostX + getRoomWidth()
+  local hShootVector = {{leftmostX, entity.Position.Y}, {rightmostX, entity.Position.Y}}
+  
+  local topmostY = 0 + Xoffset
+  local bottommostY = (getRoomWidth() * getRoomHeight()) - getRoomWidth() + Xoffset
+  local vShootVector = {{entityPosition.X, topmostY},{entityPosition.X, bottommostY}}
+  
+  return {hShootVector, vShootVector}
+end
+
+function printVectorLists(vectors)
+  printVectors = {}
+  for i, v in pairs(vectors) do
+    for j, v0 in pairs(v) do
+      printVectors = append(printVectors, Vector(v0[1], v0[2]))
+    end
+  end
+  printAllGridIndices(printVectors)
+end
+
+function distanceEvaluation(current, action, nextState)
+  local closenessThreshold = 100
+  local currentPosn = getGridPos(current)
+  local nextPosn = getGridPos(nextState)
+  
+  local enemies = getEnemies()
+  local distToClosest = 9999999
+  for idx, enemy in pairs(enemies) do
+    local theDist = getDistance(nextPosn.X, enemy.Position.X, nextPosn.Y, enemy.Position.Y) 
+    if theDist < distToClosest then
+      distToClosest = theDist
+    end
+  end
+  
+  shootVectors = getShootVectors(Game():GetPlayer(0))
+  printVectorLists(shootVectors)
+  return (distToClosest - 10) 
+end
+
+function nextQPosition(thisState, evaluationFn) 
+  local bestIndex = getPlayerIndex()
+  local minVal = 999999999
+  for idx, action in pairs(legalActions()) do
+    local nextState = getNextState(thisState, action)
+    local currVal = evaluationFn(thisState, action, nextState)
+    if currVal < minVal then
+      bestIndex = nextState
+      minVal = currVal
+    end
+  end
+  return bestIndex
+end
+
 function onUpdate()
   --reevaluateEnvironment()
+  printAdjacentGridIndices()
   attack(getClosestEnemy())
-  --moveTo(nextQPosition())
+  moveTo(nextQPosition(getPlayerIndex(), distanceEvaluation))
 end
 
 QIsaac.onUpdate = onUpdate

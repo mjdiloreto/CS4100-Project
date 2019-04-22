@@ -7,9 +7,9 @@ moveDirectionY = nil
 
 function onInputRequest(_, entity, inputHook, buttonAction)
   
-  if qLearning then
+  --[[if qLearning then
     return QIsaac.onInputRequest(_, entity, inputHook, buttonAction)
-  end
+  end--]]
   
   if modEnabled then
     if entity ~= nil then
