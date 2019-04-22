@@ -1,17 +1,15 @@
 QIsaac = {}
---shootDirection = ButtonAction.ACTION_SHOOTUP
 
---Duplicated functions
-function getRoomWidth()
-  return Game():GetRoom():GetGridWidth()
+function getRealRoomWidth()
+  return Game():GetRoom():GetBottomRightPos().X
 end
 
-function getRoomHeight()
-  return Game():GetRoom():GetGridHeight()
+function getGridPosition(posn)
+  return Game():GetRoom():GetGridPosition(posn)
 end
 
-function modulo(a, b)
-  return (a - math.floor(a/b)*b)
+function getRealRoomHeight()
+  return Game():GetRoom():GetBottomRightPos().Y
 end
 
 function getAllDoorsInRoom(room)
@@ -195,7 +193,7 @@ function getNextState(current, action)
     return current + getRoomWidth()
   elseif action == ButtonAction.ACTION_LEFT then
     return current - 1
-  elseif action == ButtonAction.ACTION_DOWN then
+  elseif action == ButtonAction.ACTION_RIGHT then
     return current + 1
   else  
     return current
@@ -203,27 +201,21 @@ function getNextState(current, action)
 end
 
 function getShootVectors(entity)
-  local entityPosition = entity.Position
-  local Xoffset = modulo(entityPosition.X, getRoomWidth())
-  local leftmostX = entityPosition.X - Xoffset
-  local rightmostX = leftmostX + getRoomWidth()
-  local hShootVector = {{leftmostX, entity.Position.Y}, {rightmostX, entity.Position.Y}}
-  
-  local topmostY = 0 + Xoffset
-  local bottommostY = (getRoomWidth() * getRoomHeight()) - getRoomWidth() + Xoffset
-  local vShootVector = {{entityPosition.X, topmostY},{entityPosition.X, bottommostY}}
+  local hShootVector = {{0, entity.Position.Y}, {getRealRoomWidth(), entity.Position.Y}}
+  local vShootVector = {{entity.Position.X, 0},{entity.Position.X, getRealRoomHeight()}}
   
   return {hShootVector, vShootVector}
 end
 
 function printVectorLists(vectors)
-  printVectors = {}
+  printVecs = {}
   for i, v in pairs(vectors) do
     for j, v0 in pairs(v) do
-      printVectors = append(printVectors, Vector(v0[1], v0[2]))
+      printVecs = append(printVecs, Vector(v0[1], v0[2]))
     end
   end
-  printAllGridIndices(printVectors)
+  
+  printAllGridIndices(printVecs)
 end
 
 function distanceEvaluation(current, action, nextState)
@@ -241,7 +233,7 @@ function distanceEvaluation(current, action, nextState)
   end
   
   shootVectors = getShootVectors(Game():GetPlayer(0))
-  printVectorLists(shootVectors)
+  
   return (distToClosest - 10) 
 end
 
@@ -261,11 +253,16 @@ end
 
 function onUpdate()
   --reevaluateEnvironment()
-  printAdjacentGridIndices()
   attack(getClosestEnemy())
   moveTo(nextQPosition(getPlayerIndex(), distanceEvaluation))
+end
+
+function onRender()
+  shootVectors = getShootVectors(Game():GetPlayer(0))
+  printVectorLists(shootVectors)
 end
 
 QIsaac.onUpdate = onUpdate
 QIsaac.onInputRequest = onInputRequest
 QIsaac.startQTraining = startQTraining
+QIsaac.onRender = onRender

@@ -4,6 +4,10 @@
 
 -- code to be run every frame
 function onStep()
+  if qLearning then
+    QIsaac.onRender()
+  end
+  
   -- enable and disable the AI mod by pressing 'R' on your keyboard
   if Input.IsActionTriggered(ButtonAction.ACTION_RESTART, 0) then
     if modEnabled then
