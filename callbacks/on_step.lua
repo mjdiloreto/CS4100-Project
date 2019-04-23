@@ -4,10 +4,6 @@
 
 -- code to be run every frame
 function onStep()
-  if qLearning then
-    QIsaac.onRender()
-  end
-  
   -- enable and disable the AI mod by pressing 'R' on your keyboard
   if Input.IsActionTriggered(ButtonAction.ACTION_RESTART, 0) then
     if modEnabled then
@@ -26,6 +22,10 @@ function onStep()
   printIsaacMessage()
 
   if modEnabled then
+    if qLearning then
+      QIsaac.onRender()
+    end
+  
     -- this agent moves left and then right every moveLeftAndRightEvery tics
     if agentType == AgentType.MoveLeftAndRight then
       MoveLeftAndRightAgent()

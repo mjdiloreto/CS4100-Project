@@ -4,7 +4,7 @@ function onLevelStart()
   updateVisitedRooms()
   
   if qLearning then
-    QIsaac.startQTraining()
+    --QIsaac.startQTraining()
   end
 end
 
