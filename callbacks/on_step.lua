@@ -22,9 +22,7 @@ function onStep()
   printIsaacMessage()
 
   if modEnabled then
-    if qLearning then
-      QIsaac.onRender()
-    end
+    QIsaac.onRender()
   
     -- this agent moves left and then right every moveLeftAndRightEvery tics
     if agentType == AgentType.MoveLeftAndRight then

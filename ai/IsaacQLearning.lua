@@ -53,18 +53,34 @@ function allEntities()
   return Game():GetRoom():GetEntities()
 end
 
+function _genRandomPosition()
+  local randoms = {{0,0},{0,1000},{1000,0},{1000,1000}}
+  local ptr = 1
+  return function() 
+    ptr = modulo(ptr, #randoms) + 1
+    return randoms[ptr]
+  end
+end
+
+genRandomPosition = _genRandomPosition()
+
+function spawnRandomFly(firstFly)
+  local posn = genRandomPosition()
+  spawnFly(posn[1],posn[2], firstFly)
+end
+
 function initRoomWithFlies() 
   entities = allEntities()
   Isaac.ExecuteCommand("spawn 13.0") -- spawn a fly as a ref.
   firstFly = entities:Get(entities:__len())
-  spawnFly(0,0, firstFly)
-  spawnFly(1000,1000, firstFly)
-  spawnFly(1000,0, firstFly)
-  spawnFly(0,1000, firstFly)
+  spawnRandomFly(firstFly)
+  spawnRandomFly(firstFly)
+  spawnRandomFly(firstFly)
+  spawnRandomFly(firstFly)
   
   local function onFlyDamage(_, entity, damage)
     if entity and (damage >= entity.HitPoints) then
-      spawnFly(0,0, firstFly)
+      spawnRandomFly(firstFly)
     end
     return true
   end

@@ -7,10 +7,10 @@ goalTest = nil
 function navigate()
   
   -- if there are enemies in the room fight them
-  if (not noEnemies() and qLearning) then
+  if not noEnemies() then
     QIsaac.onUpdate()
     return 
-  elseif noEnemies() then -- stop using that agent
+  else -- stop using that agent
     directions = nil
     directionIndex = 1
   end
