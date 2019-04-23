@@ -31,7 +31,7 @@ function lockDoors(doors)
 end
 
 function spawnFly(x, y, spawner) 
-  Isaac.Spawn(13,0,0,Vector(x,y),Vector(0,0), spawner)
+  local fly = Isaac.Spawn(13,0,0,Vector(x,y),Vector(0,0), spawner)
 end
 
 function getEnemies() 
@@ -61,6 +61,15 @@ function initRoomWithFlies()
   spawnFly(1000,1000, firstFly)
   spawnFly(1000,0, firstFly)
   spawnFly(0,1000, firstFly)
+  
+  local function onFlyDamage(_, entity, damage)
+    if entity and (damage >= entity.HitPoints) then
+      spawnFly(0,0, firstFly)
+    end
+    return true
+  end
+  
+  mod:AddCallback(ModCallbacks.MC_ENTITY_TAKE_DMG, onFlyDamage, EntityType.ENTITY_FLY)
 end
 
 function startQTraining()
@@ -157,23 +166,21 @@ function distance(P1, P2, xy)
   return math.abs(num) / math.sqrt(dem)
 end
 
-function getClosestEnemy()
+function getClosestEnemy(posn)
   local enemies = getEnemies()
   local closestEnemy = nil
   local closestEnemyDist = 99999999
-  local IsaacEntity = Game():GetPlayer(0)
+  --local IsaacEntity = Game():GetPlayer(0)
   
-  --Todo find enemies hittable
-  --Todo given hittable enemy, what dir to fire, and then fire
   for idx, enemy in pairs(enemies) do
-    between = getDist(enemy, IsaacEntity)
-    if enemy and (between < closestEnemyDist) then
+    between = getDistance(enemy.Position.X, posn.X, enemy.Position.Y, posn.Y)
+    if between < closestEnemyDist then
       closestEnemy = enemy
       closestEnemyDist = between
     end
   end
   
-  return closestEnemy
+  return closestEnemy, closestEnemyDist
 end
 
 function moveTo(index)
@@ -223,29 +230,22 @@ function distanceEvaluation(current, action, nextState)
   local currentPosn = getGridPos(current)
   local nextPosn = getGridPos(nextState)
   
-  local enemies = getEnemies()
-  local distToClosest = 9999999
-  for idx, enemy in pairs(enemies) do
-    local theDist = getDistance(nextPosn.X, enemy.Position.X, nextPosn.Y, enemy.Position.Y) 
-    if theDist < distToClosest then
-      distToClosest = theDist
-    end
-  end
+  local _, distToClosest = getClosestEnemy(nextPosn)
   
   shootVectors = getShootVectors(Game():GetPlayer(0))
   
-  return (distToClosest - 10) 
+  return 999/distToClosest
 end
 
 function nextQPosition(thisState, evaluationFn) 
   local bestIndex = getPlayerIndex()
-  local minVal = 999999999
+  local bestVal = 0
   for idx, action in pairs(legalActions()) do
     local nextState = getNextState(thisState, action)
     local currVal = evaluationFn(thisState, action, nextState)
-    if currVal < minVal then
+    if currVal > bestVal then
       bestIndex = nextState
-      minVal = currVal
+      bestVal = currVal
     end
   end
   return bestIndex
@@ -253,7 +253,7 @@ end
 
 function onUpdate()
   --reevaluateEnvironment()
-  attack(getClosestEnemy())
+  attack(getClosestEnemy(Game():GetPlayer(0).Position))
   moveTo(nextQPosition(getPlayerIndex(), distanceEvaluation))
 end
 
@@ -262,7 +262,11 @@ function onRender()
   printVectorLists(shootVectors)
 end
 
+function onEnemyKilled() 
+end
+
 QIsaac.onUpdate = onUpdate
 QIsaac.onInputRequest = onInputRequest
 QIsaac.startQTraining = startQTraining
 QIsaac.onRender = onRender
+QIsaac.onEnemyKilled = onEnemyKilled
