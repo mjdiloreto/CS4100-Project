@@ -5,7 +5,7 @@ directions = nil
 goalTest = nil
 
 function navigate()
-  
+
   -- if there are enemies in the room fight them
   if not noEnemies() then
     QIsaac.onUpdate()
@@ -14,7 +14,7 @@ function navigate()
     directions = nil
     directionIndex = 1
   end
-    
+  
   -- if we haven't tried to find the path yet
   if directions == nil or #directions == 0 then
 

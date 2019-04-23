@@ -92,4 +92,4 @@ CPrint("----------------------------------")
 CPrint("")
 
 modEnabled = true
-qLearning = true
+qLearning = false
